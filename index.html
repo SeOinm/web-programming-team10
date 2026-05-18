@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>클래식 벽돌깨기</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="game-title">
+        <p class="eyebrow">HTML 캔버스 게임</p>
+        <h1 id="game-title">클래식 벽돌깨기</h1>
+        <p class="summary">
+          패들을 마우스로 움직여 공을 튕기고 모든 벽돌을 제거하세요. 공이 패드가 아닌 바닥에 닿거나 제한 시간이 끝나면 게임이 종료됩니다.
+        </p>
+      </section>
+
+      <section class="control-panel" aria-label="게임 설정">
+        <label>
+          배경색
+          <select id="backgroundSelect">
+            <option value="#f4f7ff">밝은 하늘색</option>
+            <option value="#fff8e7">따뜻한 크림색</option>
+            <option value="#eefcf1">연한 초록색</option>
+            <option value="#101827">어두운 남색</option>
+          </select>
+        </label>
+
+        <label>
+          공 색상
+          <select id="ballColorSelect">
+            <option value="#e63946">빨간색</option>
+            <option value="#2563eb">파란색</option>
+            <option value="#16a34a">초록색</option>
+            <option value="#f59e0b">주황색</option>
+          </select>
+        </label>
+
+        <label>
+          시작 난이도
+          <select id="difficultySelect">
+            <option value="0">쉬움 - 180초 / 느림</option>
+            <option value="1">보통 - 120초 / 보통</option>
+            <option value="2">어려움 - 90초 / 빠름</option>
+          </select>
+        </label>
+
+        <div class="button-row">
+          <button id="startButton" type="button">게임 시작</button>
+          <button id="nextButton" type="button" hidden>다음 난이도 시작</button>
+        </div>
+      </section>
+
+      <section class="scoreboard" aria-label="게임 상태">
+        <div>
+          <span>점수</span>
+          <strong id="scoreText">0</strong>
+        </div>
+        <div>
+          <span>난이도</span>
+          <strong id="levelText">쉬움</strong>
+        </div>
+        <div>
+          <span>남은 시간</span>
+          <strong id="timeText">180</strong>
+        </div>
+        <div>
+          <span>상태</span>
+          <strong id="statusText">대기 중</strong>
+        </div>
+      </section>
+
+      <section class="game-card" aria-label="벽돌깨기 게임 캔버스">
+        <canvas id="gameCanvas" width="780" height="520">
+          이 브라우저는 HTML 캔버스를 지원하지 않습니다.
+        </canvas>
+      </section>
+
+      <section class="rules" aria-labelledby="rules-title">
+        <h2 id="rules-title">게임 규칙</h2>
+        <ul>
+          <li>벽돌 1개를 깨면 10점을 얻습니다.</li>
+          <li>쉬움 → 보통 → 어려움 순서로 다음 난이도에 도전할 수 있습니다.</li>
+          <li>난이도가 높아질수록 공이 빨라지고 제한 시간이 짧아집니다.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
