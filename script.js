@@ -37,6 +37,11 @@ const PADDLE = {
   y: canvas.height - 42,
 };
 
+// TNT(폭발 블록) 관련 설정값
+const TNT_RATIO = 0.10;                       // 전체 블록 중 약 10%가 TNT
+const EXPLOSION_RADIUS = BRICK.width * 1.6;   // 폭발 반경(약 125px, 자기 + 주변 8칸 정도)
+const TNT_BONUS = 20;                         // TNT 자체를 깼을 때 점수(일반 블록 10보다 높음)
+
 // 게임 진행에 필요한 현재 상태를 저장한다.
 const state = {
   status: "ready",
@@ -50,6 +55,8 @@ const state = {
   paddleX: (canvas.width - PADDLE.width) / 2,
   ball: createBall(LEVELS[0].speed),
   bricks: createBricks(),
+  particles: [],
+  flashes: [],
 };
 
 // 새 공을 만든다. 시작 위치는 패드 위쪽이다.
@@ -77,6 +84,7 @@ function createBricks() {
         width: BRICK.width,
         height: BRICK.height,
         color: colors[row % colors.length],
+        type: Math.random() < TNT_RATIO ? "tnt" : "normal",
         active: true,
       });
     }
@@ -103,6 +111,8 @@ function startGame(levelIndex = Number(difficultySelect.value)) {
   state.paddleX = (canvas.width - PADDLE.width) / 2;
   state.ball = createBall(level.speed);
   state.bricks = createBricks();
+  state.particles = [];
+  state.flashes = [];
 
   nextButton.hidden = true;
   updateHud("진행 중");
@@ -127,6 +137,8 @@ function gameLoop(timestamp, runId) {
   if (state.status === "running") {
     updateBall(deltaSeconds);
   }
+
+  updateParticles(deltaSeconds);
 
   draw();
 
@@ -192,7 +204,7 @@ function handlePaddleCollision() {
   }
 }
 
-// 공이 벽돌에 닿으면 벽돌을 없애고 점수를 올린다.
+// 공이 벽돌에 닿으면 벽돌을 없애고 점수를 올린다. TNT는 폭발해서 주변 블록도 함께 깬다.
 function handleBrickCollision() {
   const ball = state.ball;
 
@@ -201,9 +213,14 @@ function handleBrickCollision() {
       continue;
     }
 
-    brick.active = false;
-    state.score += 10;
-    ball.dy *= -1;
+    if (brick.type === "tnt") {
+      detonate(brick);
+    } else {
+      brick.active = false;
+      state.score += 10;
+      ball.dy *= -1;
+    }
+
     updateHud("진행 중");
 
     if (state.bricks.every((item) => !item.active)) {
@@ -211,6 +228,119 @@ function handleBrickCollision() {
     }
 
     break;
+  }
+}
+
+// 블록 중심이 폭발 중심에서 반경 안에 들어오는지 검사한다(sqrt 회피).
+function isInBlastRadius(brick, cx, cy, radius) {
+  const bx = brick.x + brick.width / 2;
+  const by = brick.y + brick.height / 2;
+  const dx = bx - cx;
+  const dy = by - cy;
+  return dx * dx + dy * dy <= radius * radius;
+}
+
+// 폭발 시각 효과(섬광 1개 + 사방으로 튀는 파티클 24개)를 생성한다.
+function spawnExplosionEffect(cx, cy) {
+  state.flashes.push({
+    x: cx,
+    y: cy,
+    radius: 0,
+    maxRadius: EXPLOSION_RADIUS * 0.9,
+    life: 0.25,
+    maxLife: 0.25,
+  });
+
+  const particleColors = ["#ffeb3b", "#ff9800", "#f44336", "#5d4037"];
+  const count = 24;
+  for (let i = 0; i < count; i += 1) {
+    const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.3;
+    const speed = 80 + Math.random() * 100;
+    const life = 0.4 + Math.random() * 0.3;
+    state.particles.push({
+      x: cx,
+      y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life,
+      maxLife: life,
+      color: particleColors[Math.floor(Math.random() * particleColors.length)],
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+
+// 매 프레임 파티클과 섬광의 위치/수명을 갱신하고 만료된 것을 제거한다.
+function updateParticles(deltaSeconds) {
+  for (const p of state.particles) {
+    p.x += p.vx * deltaSeconds;
+    p.y += p.vy * deltaSeconds;
+    p.vy += 200 * deltaSeconds;
+    p.life -= deltaSeconds;
+  }
+  state.particles = state.particles.filter((p) => p.life > 0);
+
+  for (const f of state.flashes) {
+    const t = 1 - f.life / f.maxLife;
+    f.radius = f.maxRadius * t;
+    f.life -= deltaSeconds;
+  }
+  state.flashes = state.flashes.filter((f) => f.life > 0);
+}
+
+// 폭발 섬광(원형 그라데이션)과 파티클(작은 사각형)을 그린다.
+function drawEffects() {
+  for (const f of state.flashes) {
+    const alpha = f.life / f.maxLife;
+    const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.radius);
+    grad.addColorStop(0, `rgba(255, 240, 180, ${alpha * 0.9})`);
+    grad.addColorStop(1, "rgba(255, 180, 80, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (const p of state.particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// TNT를 터트린다. 폭발 반경 안의 일반 블록은 즉시 제거, TNT는 큐에 넣어 연쇄 폭발한다.
+function detonate(originBrick) {
+  const queue = [originBrick];
+  originBrick.active = false;
+  let chainCount = 0;
+
+  while (queue.length > 0) {
+    const tnt = queue.shift();
+    const cx = tnt.x + tnt.width / 2;
+    const cy = tnt.y + tnt.height / 2;
+
+    spawnExplosionEffect(cx, cy);
+    state.score += TNT_BONUS;
+    chainCount += 1;
+
+    for (const brick of state.bricks) {
+      if (!brick.active) continue;
+      if (!isInBlastRadius(brick, cx, cy, EXPLOSION_RADIUS)) continue;
+
+      if (brick.type === "tnt") {
+        brick.active = false;
+        queue.push(brick);
+      } else {
+        brick.active = false;
+        state.score += 10;
+      }
+    }
+  }
+
+  if (chainCount >= 2) {
+    state.score += chainCount * 15;
   }
 }
 
@@ -265,6 +395,7 @@ function draw() {
   drawBricks();
   drawPaddle();
   drawBall();
+  drawEffects();
   drawCanvasMessage();
 }
 
@@ -283,10 +414,15 @@ function drawBackground() {
   }
 }
 
-// 아직 깨지지 않은 벽돌만 화면에 그린다.
+// 아직 깨지지 않은 벽돌만 화면에 그린다. TNT 블록은 별도 함수로 그린다.
 function drawBricks() {
   for (const brick of state.bricks) {
     if (!brick.active) {
+      continue;
+    }
+
+    if (brick.type === "tnt") {
+      drawTntBrick(brick);
       continue;
     }
 
@@ -298,6 +434,27 @@ function drawBricks() {
     ctx.lineWidth = 2;
     ctx.stroke();
   }
+}
+
+// 마인크래프트 풍 TNT 블록을 픽셀아트 톤으로 그린다.
+function drawTntBrick(brick) {
+  const { x, y, width, height } = brick;
+
+  ctx.fillStyle = "#c0392b";
+  ctx.fillRect(x, y, width, height);
+
+  ctx.fillStyle = "#3a2418";
+  ctx.fillRect(x, y, width, 4);
+  ctx.fillRect(x, y + height - 4, width, 4);
+
+  ctx.fillStyle = "#e74c3c";
+  ctx.fillRect(x + 2, y + 6, width - 4, 2);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 11px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("TNT", x + width / 2, y + height / 2 + 1);
 }
 
 // 아래쪽 패드를 그린다.
