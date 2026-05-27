@@ -48,8 +48,8 @@ const state = {
   animationId: null,
   runId: 0,
   paddleX: (canvas.width - PADDLE.width) / 2,
-  ball: createBall(LEVELS[0].speed),
-  bricks: createBricks(),
+  ball: null, // 초기화 시점에 생성
+  bricks: [],  // 초기화 시점에 생성
 };
 
 // 새 공을 만든다. 시작 위치는 패드 위쪽이다.
@@ -81,7 +81,6 @@ function createBricks() {
       });
     }
   }
-
   return bricks;
 }
 
@@ -268,9 +267,7 @@ function draw() {
   drawCanvasMessage();
 }
 
-// ===== UI 담당(문서인) 작업 영역 시작 =====
 // 사용자가 선택한 배경색을 바탕으로 픽셀 동굴 느낌의 배경을 그린다.
-// 게임 로직은 건드리지 않고 배경 시각효과만 담당한다.
 function drawBackground() {
   const base = backgroundSelect.value;
   const dark = isDarkColor(base);
@@ -286,7 +283,7 @@ function drawBackground() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 3) 16px 픽셀 격자를 그려 마인크래프트 블록 느낌을 준다.
+  // 3) 26px 픽셀 격자를 그려 마인크래프트 블록 느낌을 준다.
   const cell = 26;
   ctx.strokeStyle = dark ? "rgba(255,255,255,0.05)" : "rgba(23,32,51,0.08)";
   ctx.lineWidth = 1;
@@ -318,7 +315,6 @@ function drawBedrock(dark) {
 
   for (let row = 0; row < rows; row += 1) {
     for (let x = 0; x < canvas.width; x += cell) {
-      // 의사난수로 음영을 골라 울퉁불퉁한 돌 느낌을 낸다. (위치 기반이라 매 프레임 동일)
       const seed = (x * 13 + row * 7) % shades.length;
       ctx.fillStyle = shades[seed];
       ctx.fillRect(x, startY + row * cell, cell, cell);
@@ -326,17 +322,15 @@ function drawBedrock(dark) {
   }
 }
 
-// 배경색이 어두운 계열인지 판별한다. (격자/베드락 음영 결정용)
+// 배경색이 어두운 계열인지 판별한다.
 function isDarkColor(hex) {
   const m = hex.replace("#", "");
   if (m.length !== 6) return false;
   const r = parseInt(m.slice(0, 2), 16);
   const g = parseInt(m.slice(2, 4), 16);
   const b = parseInt(m.slice(4, 6), 16);
-  // 표준 밝기 공식
   return r * 0.299 + g * 0.587 + b * 0.114 < 120;
 }
-// ===== UI 담당(문서인) 작업 영역 끝 =====
 
 // 아직 깨지지 않은 벽돌만 화면에 그린다.
 function drawBricks() {
@@ -365,6 +359,7 @@ function drawPaddle() {
 // 사용자가 선택한 색상으로 공을 그린다.
 function drawBall() {
   const ball = state.ball;
+  if (!ball) return;
   ball.color = ballColorSelect.value;
 
   ctx.beginPath();
@@ -374,7 +369,7 @@ function drawBall() {
   ctx.closePath();
 }
 
-// 대기, 승리, 게임 종료 같은 안내 문구를 캔버스 위에 표시한다.
+// 안내 문구를 캔버스 위에 표시한다.
 function drawCanvasMessage() {
   const messages = {
     ready: "설정 후 게임 시작을 누르세요",
@@ -418,7 +413,7 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-// 마우스나 터치 위치에 맞게 패드를 좌우로 움직인다.
+// 패드를 좌우로 움직인다.
 function movePaddle(clientX) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -430,31 +425,23 @@ function movePaddle(clientX) {
   }
 }
 
-// 마우스를 움직이면 패드도 같이 움직인다.
+// 마우스 및 터치 이벤트 리스너 등록
 canvas.addEventListener("mousemove", (event) => {
   movePaddle(event.clientX);
 });
 
-// 모바일 화면에서도 손가락으로 패드를 움직일 수 있게 한다.
-canvas.addEventListener(
-  "touchmove",
-  (event) => {
-    event.preventDefault();
-    movePaddle(event.touches[0].clientX);
-  },
-  { passive: false }
-);
+canvas.addEventListener("touchmove", (event) => {
+  event.preventDefault();
+  movePaddle(event.touches[0].clientX);
+}, { passive: false });
 
-// 설정을 바꾸면 대기 화면에도 바로 반영한다.
 backgroundSelect.addEventListener("change", draw);
 ballColorSelect.addEventListener("change", draw);
 
-// 게임 시작 버튼을 눌렀을 때 선택한 난이도로 시작한다.
 startButton.addEventListener("click", () => {
   startGame(Number(difficultySelect.value));
 });
 
-// 한 단계를 클리어한 뒤 다음 난이도를 시작한다.
 nextButton.addEventListener("click", () => {
   if (state.nextLevelIndex !== null) {
     difficultySelect.value = String(state.nextLevelIndex);
@@ -462,6 +449,11 @@ nextButton.addEventListener("click", () => {
   }
 });
 
-// 처음 페이지가 열렸을 때 기본 화면을 그린다.
-updateHud("대기 중");
-draw();
+// 초기화 실행
+window.addEventListener("DOMContentLoaded", () => {
+  state.ball = createBall(LEVELS[0].speed);
+  state.bricks = createBricks();
+  updateHud("대기 중");
+  window.draw = draw; // ui.js에서 호출 가능하도록 연동
+  draw();
+});
