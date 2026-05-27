@@ -7,7 +7,7 @@
 (function () {
   const startScreen = document.getElementById("startScreen");
   const gameScreen = document.getElementById("gameScreen");
-  const enterButton = document.getElementById("enterButton");
+  const enterButton = document.getElementById("startButton");
   const backButton = document.getElementById("backButton");
   const howtoButton = document.getElementById("howtoButton");
   const howtoPanel = document.getElementById("howtoPanel");
