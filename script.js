@@ -268,20 +268,75 @@ function draw() {
   drawCanvasMessage();
 }
 
-// 사용자가 선택한 배경색으로 캔버스 배경을 칠한다.
+// ===== UI 담당(문서인) 작업 영역 시작 =====
+// 사용자가 선택한 배경색을 바탕으로 픽셀 동굴 느낌의 배경을 그린다.
+// 게임 로직은 건드리지 않고 배경 시각효과만 담당한다.
 function drawBackground() {
-  ctx.fillStyle = backgroundSelect.value;
+  const base = backgroundSelect.value;
+  const dark = isDarkColor(base);
+
+  // 1) 바탕을 칠한다.
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.strokeStyle = "rgba(23, 32, 51, 0.12)";
+  // 2) 위에서 아래로 갈수록 살짝 어두워지는 동굴 그라데이션을 얹는다.
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, "rgba(0,0,0,0)");
+  grad.addColorStop(1, dark ? "rgba(0,0,0,0.35)" : "rgba(40,30,20,0.14)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 3) 16px 픽셀 격자를 그려 마인크래프트 블록 느낌을 준다.
+  const cell = 26;
+  ctx.strokeStyle = dark ? "rgba(255,255,255,0.05)" : "rgba(23,32,51,0.08)";
   ctx.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += 40) {
+  for (let x = 0; x <= canvas.width; x += cell) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, canvas.height);
     ctx.stroke();
   }
+  for (let y = 0; y <= canvas.height; y += cell) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(canvas.width, y + 0.5);
+    ctx.stroke();
+  }
+
+  // 4) 바닥 쪽에 기반암(베드락) 느낌의 픽셀 띠를 깐다.
+  drawBedrock(dark);
 }
+
+// 바닥에 마인크래프트 기반암 같은 픽셀 블록 띠를 그린다.
+function drawBedrock(dark) {
+  const cell = 26;
+  const rows = 2;
+  const startY = canvas.height - rows * cell;
+  const shades = dark
+    ? ["#2b2b33", "#202028", "#34343d"]
+    : ["#6b6b73", "#5a5a61", "#7a7a82"];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let x = 0; x < canvas.width; x += cell) {
+      // 의사난수로 음영을 골라 울퉁불퉁한 돌 느낌을 낸다. (위치 기반이라 매 프레임 동일)
+      const seed = (x * 13 + row * 7) % shades.length;
+      ctx.fillStyle = shades[seed];
+      ctx.fillRect(x, startY + row * cell, cell, cell);
+    }
+  }
+}
+
+// 배경색이 어두운 계열인지 판별한다. (격자/베드락 음영 결정용)
+function isDarkColor(hex) {
+  const m = hex.replace("#", "");
+  if (m.length !== 6) return false;
+  const r = parseInt(m.slice(0, 2), 16);
+  const g = parseInt(m.slice(2, 4), 16);
+  const b = parseInt(m.slice(4, 6), 16);
+  // 표준 밝기 공식
+  return r * 0.299 + g * 0.587 + b * 0.114 < 120;
+}
+// ===== UI 담당(문서인) 작업 영역 끝 =====
 
 // 아직 깨지지 않은 벽돌만 화면에 그린다.
 function drawBricks() {
