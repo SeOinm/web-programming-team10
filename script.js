@@ -14,9 +14,9 @@ const statusText = document.getElementById("statusText");
 
 // 난이도별 공 속도와 제한 시간을 정한다.
 const LEVELS = [
-  { name: "쉬움", speed: 3.4, timeLimit: 180 },
-  { name: "보통", speed: 4.5, timeLimit: 120 },
-  { name: "어려움", speed: 5.7, timeLimit: 90 },
+  { name: "쉬움 (석탄 등급)", speed: 3.4, timeLimit: 180, rareChance: 0.10 },
+  { name: "보통 (철 등급)", speed: 4.5, timeLimit: 120, rareChance: 0.15 },
+  { name: "어려움 (다이아 등급)", speed: 5.7, timeLimit: 90, rareChance: 0.20 },
 ];
 
 // 벽돌의 줄 수, 크기, 간격을 정한다.
@@ -36,7 +36,8 @@ const PADDLE = {
   height: 16,
   y: canvas.height - 42,
 };
-
+// 가속 알림 타이머 변수 추가
+let accelerationTextTimer = null;
 // 게임 진행에 필요한 현재 상태를 저장한다.
 const state = {
   status: "ready",
@@ -63,27 +64,44 @@ function createBall(speed) {
     color: ballColorSelect.value,
   };
 }
-
+function handlePaddleCollision() {
+  const ball = state.ball;
+  
+  if (ball.dy > 0 && 
+      ball.x + ball.radius > state.paddleX && 
+      ball.x - ball.radius < state.paddleX + PADDLE.width) {
+      
+    if (ball.y + ball.radius >= PADDLE.y && ball.y - ball.radius <= PADDLE.y + PADDLE.height) {
+      ball.dy = -Math.abs(ball.dy);
+      ball.y = PADDLE.y - ball.radius;
+    }
+  }
+}
 // 화면 위쪽에 벽돌들을 여러 줄로 만든다.
 function createBricks() {
   const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
   const bricks = [];
+  const currentLevel = LEVELS[state.levelIndex || 0]; // 현재 난이도 정보
 
   for (let row = 0; row < BRICK.rows; row += 1) {
     for (let col = 0; col < BRICK.cols; col += 1) {
+      // 설정한 확률에 따라 희귀 광석(true) 결정
+      const isRare = Math.random() < currentLevel.rareChance;
+
       bricks.push({
+        row: row,
         x: BRICK.offsetLeft + col * (BRICK.width + BRICK.padding),
         y: BRICK.offsetTop + row * (BRICK.height + BRICK.padding),
         width: BRICK.width,
         height: BRICK.height,
-        color: colors[row % colors.length],
+        color: isRare ? "#5ad6e0" : colors[row % colors.length], 
+        isRare: isRare, // 희귀 광석 여부 저장
         active: true,
       });
     }
   }
   return bricks;
 }
-
 // 시작 버튼을 누르거나 다음 난이도를 시작할 때 새 게임을 준비한다.
 function startGame(levelIndex = Number(difficultySelect.value)) {
   const level = LEVELS[levelIndex];
@@ -145,8 +163,10 @@ function updateTimer(deltaSeconds) {
     endGame("시간 초과! 게임 종료");
     return;
   }
-
+// [수정] 가속 알림 타이머가 돌고 있을 때는 "진행 중"으로 덮어쓰지 않습니다.
+if (!accelerationTextTimer) {
   updateHud("진행 중");
+}
 }
 
 // 공의 위치를 이동시키고 벽, 패드, 벽돌 충돌을 확인한다.
@@ -175,23 +195,6 @@ function updateBall(deltaSeconds) {
   }
 }
 
-// 공이 패드에 닿으면 위쪽으로 튕기게 한다.
-function handlePaddleCollision() {
-  const ball = state.ball;
-  const isFalling = ball.dy > 0;
-  const hitPaddleY = ball.y + ball.radius >= PADDLE.y && ball.y - ball.radius <= PADDLE.y + PADDLE.height;
-  const hitPaddleX = ball.x >= state.paddleX && ball.x <= state.paddleX + PADDLE.width;
-
-  if (isFalling && hitPaddleY && hitPaddleX) {
-    const hitPoint = (ball.x - (state.paddleX + PADDLE.width / 2)) / (PADDLE.width / 2);
-    const speed = LEVELS[state.levelIndex].speed;
-    ball.dx = hitPoint * speed;
-    ball.dy = -Math.sqrt(Math.max(speed * speed - ball.dx * ball.dx * 0.35, speed));
-    ball.y = PADDLE.y - ball.radius;
-  }
-}
-
-// 공이 벽돌에 닿으면 벽돌을 없애고 점수를 올린다.
 function handleBrickCollision() {
   const ball = state.ball;
 
@@ -201,9 +204,47 @@ function handleBrickCollision() {
     }
 
     brick.active = false;
-    state.score += 10;
+    
+    // 희귀 광석은 50점, 일반은 10점
+    state.score += brick.isRare ? 50 : 10;
     ball.dy *= -1;
-    updateHud("진행 중");
+
+    // --- [실시간 줄 계산 및 가속 로직] ---
+    const rowStatus = Array(BRICK.rows).fill(false);
+    state.bricks.forEach(b => {
+      if (b.active) rowStatus[b.row] = true;
+    });
+    
+    const clearedRows = rowStatus.filter(hasActive => !hasActive).length;
+    
+    // 줄 제거에 따른 배율 계산 (1줄=1.15배, 2줄=1.30배...)
+    const speedMultiplier = 1 + (clearedRows * 0.15);
+    const baseSpeed = LEVELS[state.levelIndex].speed;
+    const newSpeed = baseSpeed * speedMultiplier;
+
+    // 공의 속도 벡터 갱신
+    const currentMagnitude = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+    ball.dx = (ball.dx / currentMagnitude) * newSpeed;
+    ball.dy = (ball.dy / currentMagnitude) * newSpeed;
+
+    // --- [실시간 가속 알림 텍스트 연동 - 1.5초 유지] ---
+    if (clearedRows > 0) {
+      const percent = Math.round(speedMultiplier * 100);
+
+      if (accelerationTextTimer) clearTimeout(accelerationTextTimer);
+
+      updateHud(`⚡ 가속! 공 속도 증가 (${percent}%)`);
+
+      accelerationTextTimer = setTimeout(() => {
+        accelerationTextTimer = null;
+        updateHud("진행 중");
+      }, 1500);
+
+    } else {
+      if (!accelerationTextTimer) {
+        updateHud("진행 중");
+      }
+    }
 
     if (state.bricks.every((item) => !item.active)) {
       clearLevel();
@@ -212,7 +253,6 @@ function handleBrickCollision() {
     break;
   }
 }
-
 // 원 모양 공과 사각형 벽돌이 충돌했는지 검사한다.
 function circleIntersectsRect(circle, rect) {
   const nearestX = clamp(circle.x, rect.x, rect.x + rect.width);
@@ -249,13 +289,12 @@ function endGame(message) {
   updateHud(message);
   draw();
 }
-
 // 점수판에 점수, 난이도, 시간, 상태를 표시한다.
-function updateHud(statusMessage) {
-  scoreText.textContent = String(state.score);
-  levelText.textContent = LEVELS[state.levelIndex].name;
-  timeText.textContent = String(Math.ceil(state.timeLeft));
-  statusText.textContent = statusMessage;
+function updateHud(status) {
+  document.getElementById("scoreText").textContent = state.score;
+  document.getElementById("levelText").textContent = LEVELS[state.levelIndex].name;
+  document.getElementById("timeText").textContent = Math.ceil(state.timeLeft);
+  document.getElementById("statusText").textContent = status; 
 }
 
 // 캔버스 전체를 다시 그린다.
