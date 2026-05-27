@@ -53,13 +53,13 @@
           </ul>
         </div>
    
-        <!-- 게임 규칙 패널 (접힘) -->
-        <div id="rulesPanel" class="howto-panel" hidden>
-          <h2>⛏ 게임 규칙</h2>
-          <ul>
-            <li>블록 1개를 부수면 10점을 얻습니다.</li>
-            <li>쉬움 → 보통 → 어려움 순서로 더 깊은 광맥에 도전합니다.</li>
-            <li>난이도가 높아질수록 공이 빨라지고 제한 시간이 짧아집니다.</li>
+        <!-- 게임 규칙 패널 (수정) -->
+       <div id="rulesPanel" class="howto-panel" hidden>
+         <h2>⛏ 게임 규칙</h2>
+         <ul>
+            <li>일반 블록은 10점, 황금색 <b>희귀 광석</b>은 50점을 얻습니다.</li>
+            <li>난이도가 올라갈수록 희귀 광석이 나올 확률이 높아집니다!</li>
+            <li>블록 한 줄(Row)을 완벽히 없앨 때마다 <b>공의 속도가 15%씩 실시간으로 가속</b>됩니다.</li>
           </ul>
         </div>
       </section>
@@ -97,12 +97,11 @@
           <label class="ctrl">
             <span class="ctrl-label">시작 난이도</span>
             <select id="difficultySelect">
-              <option value="0">쉬움 · 180초 / 느림</option>
-              <option value="1">보통 · 120초 / 보통</option>
-              <option value="2">어려움 · 90초 / 빠름</option>
+              <option value="0">쉬움 (제한시간 180초)</option>
+              <option value="1">보통 (제한시간 120초)</option>
+              <option value="2">어려움 (제한시간 90초)</option>
             </select>
           </label>
-
           <div class="button-row">
             <button id="startButton" type="button" class="mc-btn mc-btn-green">게임 시작</button>
             <button id="nextButton" type="button" class="mc-btn mc-btn-gold" hidden>다음 난이도 →</button>
