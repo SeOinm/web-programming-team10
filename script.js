@@ -500,6 +500,8 @@ nextButton.addEventListener("click", () => {
   }
 });
 
-// 처음 페이지가 열렸을 때 기본 화면을 그린다.
-updateHud("대기 중");
-draw();
+// [수정] 브라우저 화면(DOM)이 완벽히 로드된 후 안전하게 초기화 작업을 진행한다.
+window.addEventListener("DOMContentLoaded", () => {
+  updateHud("대기 중");
+  draw();
+});
