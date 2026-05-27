@@ -658,3 +658,30 @@ canvas {
     animation: none;
   }
 }
+
+/* ============================================================
+   [추가] 실시간 광맥 완파 및 가속 알림 시각 효과
+   ============================================================ */
+
+/* 스코어보드의 상태 텍스트가 '광맥 완파! 공 가속!'일 때 적용될 동적 스타일 */
+#statusText {
+  transition: color 0.15s steps(1);
+}
+
+/* 시스템에서 가속 알림이 떴을 때 텍스트를 마인크래프트 TNT/레드스톤 빛깔로 깜빡이게 만듦 */
+.score-cell strong:contains("광맥") {
+  color: var(--tnt) !important;
+  animation: pixel-flash 0.4s steps(1) infinite;
+}
+
+/* 만약 브라우저 호환성으로 contains가 안 먹힐 경우를 대비한 텍스트 점멸 애니메이션 정의 */
+@keyframes pixel-flash {
+  0%, 100% {
+    color: var(--tnt);
+    text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    color: var(--gold);
+    text-shadow: 1px 1px 0 var(--ink);
+  }
+}
