@@ -14,11 +14,12 @@ const statusText = document.getElementById("statusText");
 
 // 난이도별 공 속도와 제한 시간을 정한다.
 const LEVELS = [
-  { name: "쉬움", speed: 3.4, timeLimit: 180 },
-  { name: "보통", speed: 4.5, timeLimit: 120 },
-  { name: "어려움", speed: 5.7, timeLimit: 90 },
+  { name: "쉬움", speed: 3.4, timeLimit: 180, rareChance: 0.10 },
+  { name: "보통", speed: 4.5, timeLimit: 120, rareChance: 0.30 },
+  { name: "어려움", speed: 5.7, timeLimit: 90, rareChance: 0.60 },
 ];
-
+const SPEED_UP_FACTOR = 1.12; // 한 줄 완파 시 공 속도 12% 가속
+const MAX_SPEED = 14;         // 최고 속도 상한선
 // 벽돌의 줄 수, 크기, 간격을 정한다.
 const BRICK = {
   rows: 5,
@@ -49,7 +50,7 @@ const state = {
   runId: 0,
   paddleX: (canvas.width - PADDLE.width) / 2,
   ball: createBall(LEVELS[0].speed),
-  bricks: createBricks(),
+bricks: createBricks(LEVELS[0].rareChance),
 };
 
 // 새 공을 만든다. 시작 위치는 패드 위쪽이다.
@@ -65,19 +66,24 @@ function createBall(speed) {
 }
 
 // 화면 위쪽에 벽돌들을 여러 줄로 만든다.
-function createBricks() {
+function createBricks(rareChance = 0.10) {
   const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
   const bricks = [];
 
   for (let row = 0; row < BRICK.rows; row += 1) {
     for (let col = 0; col < BRICK.cols; col += 1) {
+      const isRare = Math.random() < rareChance;
+
       bricks.push({
         x: BRICK.offsetLeft + col * (BRICK.width + BRICK.padding),
         y: BRICK.offsetTop + row * (BRICK.height + BRICK.padding),
         width: BRICK.width,
         height: BRICK.height,
-        color: colors[row % colors.length],
+        color: isRare ? "#00f5ff" : colors[row % colors.length], 
         active: true,
+        row: row,          
+        isRare: isRare,    
+        hp: isRare ? 2 : 1 
       });
     }
   }
@@ -102,7 +108,7 @@ function startGame(levelIndex = Number(difficultySelect.value)) {
   state.nextLevelIndex = null;
   state.paddleX = (canvas.width - PADDLE.width) / 2;
   state.ball = createBall(level.speed);
-  state.bricks = createBricks();
+  state.bricks = createBricks(level.rareChance);
 
   nextButton.hidden = true;
   updateHud("진행 중");
@@ -185,9 +191,9 @@ function handlePaddleCollision() {
 
   if (isFalling && hitPaddleY && hitPaddleX) {
     const hitPoint = (ball.x - (state.paddleX + PADDLE.width / 2)) / (PADDLE.width / 2);
-    const speed = LEVELS[state.levelIndex].speed;
-    ball.dx = hitPoint * speed;
-    ball.dy = -Math.sqrt(Math.max(speed * speed - ball.dx * ball.dx * 0.35, speed));
+const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+    ball.dx = hitPoint * (currentSpeed * 0.7);
+    ball.dy = -Math.sqrt(Math.max(currentSpeed * currentSpeed - ball.dx * ball.dx * 0.35, currentSpeed));
     ball.y = PADDLE.y - ball.radius;
   }
 }
@@ -201,13 +207,21 @@ function handleBrickCollision() {
       continue;
     }
 
-    brick.active = false;
-    state.score += 10;
     ball.dy *= -1;
-    updateHud("진행 중");
+    brick.hp -= 1;
+    
+    if (brick.hp === 0) {
+      brick.active = false;
+      state.score += brick.isRare ? 40 : 10; // 희귀 광석은 40점
+      updateHud("진행 중");
 
-    if (state.bricks.every((item) => !item.active)) {
-      clearLevel();
+      checkRowClearAndSpeedUp(brick.row); // 줄 완파 검사 함수 호출
+
+      if (state.bricks.every((item) => !item.active)) {
+        clearLevel();
+      }
+    } else {
+      brick.color = "#00a8b5"; // 희귀 광석 1대 맞으면 금이 간 연출 (색상 변경)
     }
 
     break;
@@ -373,7 +387,31 @@ function drawBall() {
   ctx.fill();
   ctx.closePath();
 }
+function checkRowClearAndSpeedUp(rowIndex) {
+  const rowBricks = state.bricks.filter(item => item.row === rowIndex);
+  if (rowBricks.some(item => item.active === true)) {
+    return;
+  }
 
+  const dirX = Math.sign(state.ball.dx);
+  const dirY = Math.sign(state.ball.dy);
+
+  let newSpeedX = Math.abs(state.ball.dx) * SPEED_UP_FACTOR;
+  let newSpeedY = Math.abs(state.ball.dy) * SPEED_UP_FACTOR;
+
+  if (newSpeedX > MAX_SPEED) newSpeedX = MAX_SPEED;
+  if (newSpeedY > MAX_SPEED) newSpeedY = MAX_SPEED;
+
+  state.ball.dx = dirX * newSpeedX;
+  state.ball.dy = dirY * newSpeedY;
+
+  statusText.textContent = "광맥 완파! 공 가속!";
+  setTimeout(() => {
+    if (state.status === "running") {
+      statusText.textContent = "진행 중";
+    }
+  }, 1200);
+}
 // 대기, 승리, 게임 종료 같은 안내 문구를 캔버스 위에 표시한다.
 function drawCanvasMessage() {
   const messages = {
