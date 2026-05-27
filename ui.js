@@ -15,10 +15,14 @@
   const rulesPanel = document.getElementById("rulesPanel");
 
   // 시작 화면 → 게임 화면
-  function showGame() {
+function showGame() {
     startScreen.hidden = true;
     gameScreen.hidden = false;
-    // 화면이 보이게 된 직후 캔버스를 한 번 다시 그려준다.
+    
+    // [보완] 화면이 바뀔 때 기존에 돌고 있던 게임을 대기 상태(ready)로 깔끔하게 셋팅해 줌
+    if (typeof window.updateHud === "function") {
+      window.updateHud("대기 중");
+    }
     if (typeof window.draw === "function") {
       window.draw();
     }
@@ -26,12 +30,20 @@
   }
 
   // 게임 화면 → 시작 화면
-  function showStart() {
+function showStart() {
     gameScreen.hidden = true;
     startScreen.hidden = false;
+    
+    // [보완] 메인 메뉴로 나가면 게임 루프와 타이머를 즉시 정지시킴
+    if (window.state) {
+      window.state.status = "ready";
+      if (window.state.animationId !== null) {
+        cancelAnimationFrame(window.state.animationId);
+        window.state.animationId = null;
+      }
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
-
   enterButton.addEventListener("click", showGame);
   backButton.addEventListener("click", showStart);
 
