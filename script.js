@@ -1,7 +1,13 @@
+const startScreen = document.getElementById("startScreen");
+const gameScreen = document.getElementById("gameScreen");
+const enterButton = document.getElementById("enterButton");
+const howtoButton = document.getElementById("howtoButton");
+const rulesButton = document.getElementById("rulesButton");
+const howtoPanel = document.getElementById("howtoPanel");
+const rulesPanel = document.getElementById("rulesPanel");
 // 캔버스와 화면 요소들을 가져온다.
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-
 const backgroundSelect = document.getElementById("backgroundSelect");
 const ballColorSelect = document.getElementById("ballColorSelect");
 const difficultySelect = document.getElementById("difficultySelect");
@@ -505,3 +511,31 @@ window.addEventListener("DOMContentLoaded", () => {
   updateHud("대기 중");
   draw();
 });
+// ====== [추가] 메인 화면 인터랙션 및 화면 전환 리스너 ======
+// 1) [게임 시작] 버튼을 누르면 첫 화면을 숨기고 진짜 게임 화면을 보여줍니다.
+enterButton.addEventListener("click", () => {
+  startScreen.hidden = true;   // 메인 메뉴 숨기기
+  gameScreen.hidden = false;   // 인게임 제어판/캔버스 보여주기
+  state.status = "ready";      // 게임 상태를 대기 중으로 설정
+  
+  // [보완] 공의 색상 선택 값을 현재 select 박스 값으로 다시 한 번 동기화
+  state.ball.color = ballColorSelect.value; 
+  updateHud("대기 중");         // 상단 UI 스코어보드 텍스트 갱신
+  
+  draw();                      // 초기 캔버스 화면 그리기
+});
+
+// 2) 조작법 버튼 토글 (열려있으면 닫고, 닫혀있으면 열기)
+howtoButton.addEventListener("click", () => {
+  howtoPanel.hidden = !howtoPanel.hidden;
+  if (typeof rulesPanel !== "undefined") rulesPanel.hidden = true; 
+  // 규칙 창은 닫기
+});
+
+// 3) 게임 규칙 버튼 토글
+rulesButton.addEventListener("click", () => {
+  rulesPanel.hidden = !rulesPanel.hidden;
+  if (typeof howtoPanel !== "undefined") howtoPanel.hidden = true; 
+  // 조작법 창은 닫기
+});
+// ============================================================
