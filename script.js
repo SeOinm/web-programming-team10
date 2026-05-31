@@ -20,12 +20,21 @@ const statusText = document.getElementById("statusText");
 
 // 난이도별 공 속도와 제한 시간을 정한다.
 const LEVELS = [
-  { name: "쉬움", speed: 3.4, timeLimit: 180, rareChance: 0.10 },
-  { name: "보통", speed: 4.5, timeLimit: 120, rareChance: 0.30 },
-  { name: "어려움", speed: 5.7, timeLimit: 90, rareChance: 0.60 },
+  { name: "쉬움", floor: 1, speed: 3.4, timeLimit: 180, tntChance: 0.08 },
+  { name: "보통", floor: 2, speed: 4.5, timeLimit: 120, tntChance: 0.10 },
+  { name: "어려움", floor: 3, speed: 5.7, timeLimit: 90, tntChance: 0.12 },
 ];
 const SPEED_UP_FACTOR = 1.12; // 한 줄 완파 시 공 속도 12% 가속
 const MAX_SPEED = 14;         // 최고 속도 상한선
+const DIAMOND_CHANCE = 0.08;
+const BLOCK_TYPES = {
+  dirt: { label: "흙", hp: 1, score: 10, color: "#8a5a37", damagedColor: "#6b4527", textColor: "#fff7ed" },
+  stone: { label: "돌", hp: 2, score: 30, color: "#8d8d8d", damagedColor: "#6e6e6e", textColor: "#111827" },
+  iron: { label: "철광석", hp: 3, score: 60, color: "#d8c0a8", damagedColor: "#a68a72", textColor: "#1f2937" },
+  gold: { label: "금광석", hp: 4, score: 100, color: "#f5c542", damagedColor: "#c98f1d", textColor: "#2b2018" },
+  diamond: { label: "다이아", hp: 5, score: 200, color: "#5ad6e0", damagedColor: "#198fa0", textColor: "#102a43" },
+  tnt: { label: "TNT", hp: 1, score: 0, color: "#d33b2c", damagedColor: "#9f241d", textColor: "#111827" },
+};
 // 벽돌의 줄 수, 크기, 간격을 정한다.
 const BRICK = {
   rows: 5,
@@ -44,6 +53,111 @@ const PADDLE = {
   y: canvas.height - 42,
 };
 
+// 브라우저 기본 오디오로 효과음을 만든다. 별도 음원 파일 없이 즉시 재생된다.
+const Sound = (() => {
+  let audioContext = null;
+
+  function getContext() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return null;
+    }
+
+    if (!audioContext) {
+      audioContext = new AudioContextClass();
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
+    return audioContext;
+  }
+
+  function playTone(frequency, duration, type = "square", gain = 0.05, delay = 0) {
+    const context = getContext();
+    if (!context) {
+      return;
+    }
+
+    const startTime = context.currentTime + delay;
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+    gainNode.gain.setValueAtTime(gain, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
+  }
+
+  function playNoise(duration = 0.25, gain = 0.08) {
+    const context = getContext();
+    if (!context) {
+      return;
+    }
+
+    const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
+    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i += 1) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / sampleCount);
+    }
+
+    const source = context.createBufferSource();
+    const gainNode = context.createGain();
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 900;
+    gainNode.gain.value = gain;
+
+    source.buffer = buffer;
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(context.destination);
+    source.start();
+    source.stop(context.currentTime + duration);
+  }
+
+  return {
+    unlock() {
+      getContext();
+    },
+    hit() {
+      playTone(180, 0.06, "square", 0.035);
+    },
+    breakBlock() {
+      playTone(520, 0.08, "triangle", 0.045);
+      playTone(760, 0.06, "triangle", 0.025, 0.04);
+    },
+    bounce() {
+      playTone(260, 0.035, "sine", 0.025);
+    },
+    rowClear() {
+      playTone(440, 0.07, "triangle", 0.04);
+      playTone(660, 0.08, "triangle", 0.04, 0.08);
+    },
+    explosion() {
+      playNoise(0.32, 0.12);
+      playTone(90, 0.2, "sawtooth", 0.07);
+      playTone(55, 0.24, "square", 0.045, 0.04);
+    },
+    gameOver() {
+      playTone(220, 0.12, "sawtooth", 0.045);
+      playTone(140, 0.18, "sawtooth", 0.04, 0.12);
+    },
+    levelClear() {
+      playTone(560, 0.08, "triangle", 0.045);
+      playTone(720, 0.09, "triangle", 0.045, 0.08);
+      playTone(920, 0.12, "triangle", 0.04, 0.17);
+    },
+  };
+})();
+
 // 게임 진행에 필요한 현재 상태를 저장한다.
 const state = {
   status: "ready",
@@ -56,7 +170,8 @@ const state = {
   runId: 0,
   paddleX: (canvas.width - PADDLE.width) / 2,
   ball: createBall(LEVELS[0].speed),
-bricks: createBricks(LEVELS[0].rareChance),
+  bricks: createBricks(0),
+  clearedRows: new Set(),
 };
 
 // 새 공을 만든다. 시작 위치는 패드 위쪽이다.
@@ -71,30 +186,74 @@ function createBall(speed) {
   };
 }
 
-// 화면 위쪽에 벽돌들을 여러 줄로 만든다.
-function createBricks(rareChance = 0.10) {
-  const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
+// 화면 위쪽에 현재 층에 맞는 블록들을 여러 줄로 만든다.
+function createBricks(levelIndex = 0) {
+  const level = LEVELS[levelIndex];
   const bricks = [];
 
   for (let row = 0; row < BRICK.rows; row += 1) {
     for (let col = 0; col < BRICK.cols; col += 1) {
-      const isRare = Math.random() < rareChance;
-
-      bricks.push({
+      const typeKey = pickBlockType(level);
+      const brick = {
         x: BRICK.offsetLeft + col * (BRICK.width + BRICK.padding),
         y: BRICK.offsetTop + row * (BRICK.height + BRICK.padding),
         width: BRICK.width,
         height: BRICK.height,
-        color: isRare ? "#00f5ff" : colors[row % colors.length], 
         active: true,
-        row: row,          
-        isRare: isRare,    
-        hp: isRare ? 2 : 1 
-      });
+        row: row,
+        col: col,
+      };
+      applyBlockType(brick, typeKey);
+      bricks.push(brick);
     }
   }
 
+  ensureTntBlock(bricks);
+
   return bricks;
+}
+
+function applyBlockType(brick, typeKey) {
+  const type = BLOCK_TYPES[typeKey];
+  brick.type = typeKey;
+  brick.label = type.label;
+  brick.color = type.color;
+  brick.baseColor = type.color;
+  brick.damagedColor = type.damagedColor;
+  brick.textColor = type.textColor;
+  brick.hp = type.hp;
+  brick.maxHp = type.hp;
+  brick.score = type.score;
+}
+
+function ensureTntBlock(bricks) {
+  if (bricks.some((brick) => brick.type === "tnt")) {
+    return;
+  }
+
+  const index = Math.floor(Math.random() * bricks.length);
+  applyBlockType(bricks[index], "tnt");
+}
+
+function pickBlockType(level) {
+  if (Math.random() < level.tntChance) {
+    return "tnt";
+  }
+
+  const roll = Math.random();
+  if (level.floor === 1) {
+    return roll < 0.65 ? "dirt" : "stone";
+  }
+
+  if (level.floor === 2) {
+    return roll < 0.55 ? "stone" : "iron";
+  }
+
+  if (roll < DIAMOND_CHANCE) {
+    return "diamond";
+  }
+
+  return roll < 0.48 ? "iron" : "gold";
 }
 
 // 시작 버튼을 누르거나 다음 난이도를 시작할 때 새 게임을 준비한다.
@@ -114,7 +273,8 @@ function startGame(levelIndex = Number(difficultySelect.value)) {
   state.nextLevelIndex = null;
   state.paddleX = (canvas.width - PADDLE.width) / 2;
   state.ball = createBall(level.speed);
-  state.bricks = createBricks(level.rareChance);
+  state.bricks = createBricks(levelIndex);
+  state.clearedRows = new Set();
 
   nextButton.hidden = true;
   updateHud("진행 중");
@@ -173,11 +333,13 @@ function updateBall(deltaSeconds) {
   if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= canvas.width) {
     ball.dx *= -1;
     ball.x = clamp(ball.x, ball.radius, canvas.width - ball.radius);
+    Sound.bounce();
   }
 
   if (ball.y - ball.radius <= 0) {
     ball.dy *= -1;
     ball.y = ball.radius;
+    Sound.bounce();
   }
 
   handlePaddleCollision();
@@ -197,10 +359,11 @@ function handlePaddleCollision() {
 
   if (isFalling && hitPaddleY && hitPaddleX) {
     const hitPoint = (ball.x - (state.paddleX + PADDLE.width / 2)) / (PADDLE.width / 2);
-const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+    const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
     ball.dx = hitPoint * (currentSpeed * 0.7);
     ball.dy = -Math.sqrt(Math.max(currentSpeed * currentSpeed - ball.dx * ball.dx * 0.35, currentSpeed));
     ball.y = PADDLE.y - ball.radius;
+    Sound.bounce();
   }
 }
 
@@ -214,23 +377,96 @@ function handleBrickCollision() {
     }
 
     ball.dy *= -1;
-    brick.hp -= 1;
-    
-    if (brick.hp === 0) {
-      brick.active = false;
-      state.score += brick.isRare ? 40 : 10; // 희귀 광석은 40점
-      updateHud("진행 중");
-
-      checkRowClearAndSpeedUp(brick.row); // 줄 완파 검사 함수 호출
-
-      if (state.bricks.every((item) => !item.active)) {
-        clearLevel();
-      }
-    } else {
-      brick.color = "#00a8b5"; // 희귀 광석 1대 맞으면 금이 간 연출 (색상 변경)
-    }
+    damageBrick(brick);
 
     break;
+  }
+}
+
+function damageBrick(brick) {
+  if (brick.type === "tnt") {
+    explodeTnt(brick);
+    return;
+  }
+
+  brick.hp -= 1;
+
+  if (brick.hp <= 0) {
+    destroyBrick(brick);
+    Sound.breakBlock();
+    finishBrickChanges(new Set([brick.row]), "진행 중");
+    return;
+  }
+
+  brick.color = brick.damagedColor;
+  Sound.hit();
+  updateHud("진행 중");
+}
+
+function explodeTnt(startBrick) {
+  const queue = [startBrick];
+  const explodedKeys = new Set();
+  const affectedRows = new Set();
+  let destroyedCount = 0;
+
+  while (queue.length > 0) {
+    const tnt = queue.shift();
+    const key = `${tnt.row}:${tnt.col}`;
+    if (!tnt.active || tnt.type !== "tnt" || explodedKeys.has(key)) {
+      continue;
+    }
+
+    explodedKeys.add(key);
+    destroyBrick(tnt);
+    affectedRows.add(tnt.row);
+    destroyedCount += 1;
+
+    for (const nearby of getNearbyBricks(tnt)) {
+      if (!nearby.active || nearby === tnt) {
+        continue;
+      }
+
+      if (nearby.type === "tnt") {
+        queue.push(nearby);
+        continue;
+      }
+
+      destroyBrick(nearby);
+      affectedRows.add(nearby.row);
+      destroyedCount += 1;
+    }
+  }
+
+  Sound.explosion();
+  finishBrickChanges(affectedRows, `TNT 폭발! ${destroyedCount}개 파괴`);
+}
+
+function getNearbyBricks(centerBrick) {
+  return state.bricks.filter((brick) => (
+    Math.abs(brick.row - centerBrick.row) <= 1
+    && Math.abs(brick.col - centerBrick.col) <= 1
+  ));
+}
+
+function destroyBrick(brick) {
+  if (!brick.active) {
+    return;
+  }
+
+  brick.active = false;
+  brick.hp = 0;
+  state.score += brick.score;
+}
+
+function finishBrickChanges(affectedRows, statusMessage) {
+  updateHud(statusMessage);
+
+  for (const rowIndex of affectedRows) {
+    checkRowClearAndSpeedUp(rowIndex);
+  }
+
+  if (state.bricks.every((item) => !item.active)) {
+    clearLevel();
   }
 }
 
@@ -246,6 +482,8 @@ function circleIntersectsRect(circle, rect) {
 
 // 모든 벽돌을 깨면 다음 난이도 또는 최종 승리를 처리한다.
 function clearLevel() {
+  Sound.levelClear();
+
   if (state.levelIndex < LEVELS.length - 1) {
     state.status = "level-clear";
     state.nextLevelIndex = state.levelIndex + 1;
@@ -267,6 +505,7 @@ function endGame(message) {
   state.status = "game-over";
   state.nextLevelIndex = null;
   nextButton.hidden = true;
+  Sound.gameOver();
   updateHud(message);
   draw();
 }
@@ -368,11 +607,41 @@ function drawBricks() {
     ctx.fillStyle = brick.color;
     roundRect(brick.x, brick.y, brick.width, brick.height, 6);
     ctx.fill();
-
     ctx.strokeStyle = "rgba(255,255,255,0.7)";
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    if (brick.type === "tnt") {
+      ctx.fillStyle = "#fff7ed";
+      ctx.fillRect(brick.x + 6, brick.y + 7, brick.width - 12, 8);
+    } else if (brick.hp < brick.maxHp) {
+      drawBrickCracks(brick);
+    }
+
+    ctx.fillStyle = brick.textColor;
+    ctx.font = brick.type === "tnt" ? "700 12px sans-serif" : "700 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(brick.label, brick.x + brick.width / 2, brick.y + brick.height / 2 + 1);
   }
+}
+
+function drawBrickCracks(brick) {
+  const damageRatio = 1 - brick.hp / brick.maxHp;
+  ctx.save();
+  ctx.strokeStyle = "rgba(31, 41, 55, 0.55)";
+  ctx.lineWidth = 1 + damageRatio;
+  ctx.beginPath();
+  ctx.moveTo(brick.x + brick.width * 0.28, brick.y + 5);
+  ctx.lineTo(brick.x + brick.width * 0.4, brick.y + brick.height * 0.5);
+  ctx.lineTo(brick.x + brick.width * 0.34, brick.y + brick.height - 5);
+  if (damageRatio > 0.45) {
+    ctx.moveTo(brick.x + brick.width * 0.58, brick.y + 4);
+    ctx.lineTo(brick.x + brick.width * 0.52, brick.y + brick.height * 0.46);
+    ctx.lineTo(brick.x + brick.width * 0.68, brick.y + brick.height - 6);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 // 아래쪽 패드를 그린다.
@@ -394,11 +663,16 @@ function drawBall() {
   ctx.closePath();
 }
 function checkRowClearAndSpeedUp(rowIndex) {
+  if (state.clearedRows.has(rowIndex)) {
+    return;
+  }
+
   const rowBricks = state.bricks.filter(item => item.row === rowIndex);
   if (rowBricks.some(item => item.active === true)) {
     return;
   }
 
+  state.clearedRows.add(rowIndex);
   const dirX = Math.sign(state.ball.dx);
   const dirY = Math.sign(state.ball.dy);
 
@@ -411,6 +685,7 @@ function checkRowClearAndSpeedUp(rowIndex) {
   state.ball.dx = dirX * newSpeedX;
   state.ball.dy = dirY * newSpeedY;
 
+  Sound.rowClear();
   statusText.textContent = "광맥 완파! 공 가속!";
   setTimeout(() => {
     if (state.status === "running") {
@@ -495,12 +770,14 @@ ballColorSelect.addEventListener("change", draw);
 
 // 게임 시작 버튼을 눌렀을 때 선택한 난이도로 시작한다.
 startButton.addEventListener("click", () => {
+  Sound.unlock();
   startGame(Number(difficultySelect.value));
 });
 
 // 한 단계를 클리어한 뒤 다음 난이도를 시작한다.
 nextButton.addEventListener("click", () => {
   if (state.nextLevelIndex !== null) {
+    Sound.unlock();
     difficultySelect.value = String(state.nextLevelIndex);
     startGame(state.nextLevelIndex);
   }
