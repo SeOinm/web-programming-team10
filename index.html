@@ -118,6 +118,14 @@
             <span>난이도</span>
             <strong id="levelText">쉬움</strong>
           </div>
+          <div class="score-cell health-cell">
+            <span>체력</span>
+            <strong id="healthText" class="heart-meter" aria-label="체력 3">
+              <i class="pixel-heart is-active" aria-hidden="true"></i>
+              <i class="pixel-heart is-active" aria-hidden="true"></i>
+              <i class="pixel-heart is-active" aria-hidden="true"></i>
+            </strong>
+          </div>
           <div class="score-cell">
             <span>남은 시간</span>
             <strong id="timeText">180</strong>
@@ -134,6 +142,28 @@
             <canvas id="gameCanvas" width="780" height="520"> 이 브라우저는 HTML 캔버스를 지원하지 않습니다. </canvas>
           </div>
         </section>
+      </section>
+
+      <!-- 게임 종료 결과 팝업 -->
+      <section id="resultModal" class="result-modal" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
+        <div class="result-dialog">
+          <h2 id="resultTitle">게임 종료</h2>
+          <p id="resultMessage" class="result-message">다시 도전해 보세요!</p>
+          <div class="result-grid" aria-label="게임 결과">
+            <div class="result-cell">
+              <span>현재점수</span>
+              <strong id="finalScoreText">0</strong>
+            </div>
+            <div class="result-cell">
+              <span>최고점수</span>
+              <strong id="bestScoreText">0</strong>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="resultRestartButton" type="button" class="mc-btn mc-btn-green">다시 시작</button>
+            <button id="resultCloseButton" type="button" class="mc-btn mc-btn-stone">닫기</button>
+          </div>
+        </div>
       </section>
     </main>
 

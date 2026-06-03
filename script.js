@@ -15,8 +15,16 @@ const startButton = document.getElementById("startButton");
 const nextButton = document.getElementById("nextButton");
 const scoreText = document.getElementById("scoreText");
 const levelText = document.getElementById("levelText");
+const healthText = document.getElementById("healthText");
 const timeText = document.getElementById("timeText");
 const statusText = document.getElementById("statusText");
+const resultModal = document.getElementById("resultModal");
+const resultTitle = document.getElementById("resultTitle");
+const resultMessage = document.getElementById("resultMessage");
+const finalScoreText = document.getElementById("finalScoreText");
+const bestScoreText = document.getElementById("bestScoreText");
+const resultRestartButton = document.getElementById("resultRestartButton");
+const resultCloseButton = document.getElementById("resultCloseButton");
 
 // 난이도별 공 속도와 제한 시간을 정한다.
 const LEVELS = [
@@ -27,13 +35,15 @@ const LEVELS = [
 const SPEED_UP_FACTOR = 1.12; // 한 줄 완파 시 공 속도 12% 가속
 const MAX_SPEED = 14;         // 최고 속도 상한선
 const DIAMOND_CHANCE = 0.08;
+const BEST_SCORE_KEY = "blockBreakerBestScore";
+const MAX_LIVES = 3;
 const BLOCK_TYPES = {
-  dirt: { label: "흙", hp: 1, score: 10, color: "#8a5a37", damagedColor: "#6b4527", textColor: "#fff7ed" },
-  stone: { label: "돌", hp: 2, score: 30, color: "#8d8d8d", damagedColor: "#6e6e6e", textColor: "#111827" },
-  iron: { label: "철광석", hp: 3, score: 60, color: "#d8c0a8", damagedColor: "#a68a72", textColor: "#1f2937" },
-  gold: { label: "금광석", hp: 4, score: 100, color: "#f5c542", damagedColor: "#c98f1d", textColor: "#2b2018" },
-  diamond: { label: "다이아", hp: 5, score: 200, color: "#5ad6e0", damagedColor: "#198fa0", textColor: "#102a43" },
-  tnt: { label: "TNT", hp: 1, score: 0, color: "#d33b2c", damagedColor: "#9f241d", textColor: "#111827" },
+  dirt: { label: "흙", hp: 1, score: 10, color: "#8a5a37", damagedColor: "#6b4527", lightColor: "#a87349", darkColor: "#5f3d25", oreColor: "#6f462a", textColor: "#fff7ed" },
+  stone: { label: "돌", hp: 2, score: 30, color: "#8d8d8d", damagedColor: "#6e6e6e", lightColor: "#aaaaaa", darkColor: "#5f5f5f", oreColor: "#747474", textColor: "#111827" },
+  iron: { label: "철광석", hp: 3, score: 60, color: "#8d8d8d", damagedColor: "#6e6e6e", lightColor: "#a4a4a4", darkColor: "#5d5d5d", oreColor: "#d8c0a8", textColor: "#1f2937" },
+  gold: { label: "금광석", hp: 4, score: 100, color: "#8d8d8d", damagedColor: "#6e6e6e", lightColor: "#a4a4a4", darkColor: "#5d5d5d", oreColor: "#f5c542", textColor: "#2b2018" },
+  diamond: { label: "다이아", hp: 5, score: 200, color: "#8d8d8d", damagedColor: "#6e6e6e", lightColor: "#a7b5b8", darkColor: "#51666b", oreColor: "#5ad6e0", textColor: "#102a43" },
+  tnt: { label: "TNT", hp: 1, score: 0, color: "#d33b2c", damagedColor: "#9f241d", lightColor: "#f06a5d", darkColor: "#8d1f17", oreColor: "#fff7ed", textColor: "#111827" },
 };
 // 벽돌의 줄 수, 크기, 간격을 정한다.
 const BRICK = {
@@ -163,6 +173,7 @@ const state = {
   status: "ready",
   levelIndex: 0,
   score: 0,
+  lives: MAX_LIVES,
   timeLeft: LEVELS[0].timeLimit,
   lastTime: 0,
   nextLevelIndex: null,
@@ -220,6 +231,9 @@ function applyBlockType(brick, typeKey) {
   brick.color = type.color;
   brick.baseColor = type.color;
   brick.damagedColor = type.damagedColor;
+  brick.lightColor = type.lightColor;
+  brick.darkColor = type.darkColor;
+  brick.oreColor = type.oreColor;
   brick.textColor = type.textColor;
   brick.hp = type.hp;
   brick.maxHp = type.hp;
@@ -260,6 +274,8 @@ function pickBlockType(level) {
 function startGame(levelIndex = Number(difficultySelect.value)) {
   const level = LEVELS[levelIndex];
 
+  hideResultModal();
+
   if (state.animationId !== null) {
     cancelAnimationFrame(state.animationId);
   }
@@ -268,6 +284,7 @@ function startGame(levelIndex = Number(difficultySelect.value)) {
   state.runId += 1;
   state.levelIndex = levelIndex;
   state.score = 0;
+  state.lives = MAX_LIVES;
   state.timeLeft = level.timeLimit;
   state.lastTime = 0;
   state.nextLevelIndex = null;
@@ -346,8 +363,26 @@ function updateBall(deltaSeconds) {
   handleBrickCollision();
 
   if (ball.y - ball.radius > canvas.height) {
-    endGame("공을 놓쳤습니다! 게임 종료");
+    loseLife();
   }
+}
+
+function loseLife() {
+  state.lives -= 1;
+
+  if (state.lives <= 0) {
+    state.lives = 0;
+    endGame("체력을 모두 잃었습니다! 게임 종료");
+    return;
+  }
+
+  const currentSpeed = Math.sqrt(state.ball.dx * state.ball.dx + state.ball.dy * state.ball.dy);
+  const resetSpeed = clamp(currentSpeed / Math.SQRT2, LEVELS[state.levelIndex].speed, MAX_SPEED);
+  state.paddleX = (canvas.width - PADDLE.width) / 2;
+  state.ball = createBall(resetSpeed);
+  state.lastTime = 0;
+  updateHud(`공을 놓쳤습니다! 남은 체력 ${state.lives}`);
+  draw();
 }
 
 // 공이 패드에 닿으면 위쪽으로 튕기게 한다.
@@ -498,6 +533,7 @@ function clearLevel() {
   nextButton.hidden = true;
   updateHud("어려움 단계 클리어! 최종 승리");
   draw();
+  showResultModal("최종 승리!", "모든 난이도를 완료했습니다.");
 }
 
 // 공을 놓치거나 시간이 끝났을 때 게임을 종료한다.
@@ -508,14 +544,54 @@ function endGame(message) {
   Sound.gameOver();
   updateHud(message);
   draw();
+  showResultModal("게임 종료", message);
+}
+
+function getBestScore() {
+  const savedScore = Number(localStorage.getItem(BEST_SCORE_KEY));
+  return Number.isFinite(savedScore) ? savedScore : 0;
+}
+
+function saveBestScore(score) {
+  const bestScore = Math.max(getBestScore(), score);
+  localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
+  return bestScore;
+}
+
+function showResultModal(title, message) {
+  const bestScore = saveBestScore(state.score);
+
+  resultTitle.textContent = title;
+  resultMessage.textContent = message;
+  finalScoreText.textContent = String(state.score);
+  bestScoreText.textContent = String(bestScore);
+  resultModal.hidden = false;
+  resultRestartButton.focus();
+}
+
+function hideResultModal() {
+  resultModal.hidden = true;
 }
 
 // 점수판에 점수, 난이도, 시간, 상태를 표시한다.
 function updateHud(statusMessage) {
   scoreText.textContent = String(state.score);
   levelText.textContent = LEVELS[state.levelIndex].name;
+  updateHealthMeter();
   timeText.textContent = String(Math.ceil(state.timeLeft));
   statusText.textContent = statusMessage;
+}
+
+function updateHealthMeter() {
+  const hearts = healthText.querySelectorAll(".pixel-heart");
+
+  hearts.forEach((heart, index) => {
+    const isActive = index < state.lives;
+    heart.classList.toggle("is-active", isActive);
+    heart.classList.toggle("is-lost", !isActive);
+  });
+
+  healthText.setAttribute("aria-label", `체력 ${state.lives}`);
 }
 
 // 캔버스 전체를 다시 그린다.
@@ -604,26 +680,98 @@ function drawBricks() {
       continue;
     }
 
-    ctx.fillStyle = brick.color;
-    roundRect(brick.x, brick.y, brick.width, brick.height, 6);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.7)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    if (brick.type === "tnt") {
-      ctx.fillStyle = "#fff7ed";
-      ctx.fillRect(brick.x + 6, brick.y + 7, brick.width - 12, 8);
-    } else if (brick.hp < brick.maxHp) {
-      drawBrickCracks(brick);
-    }
-
-    ctx.fillStyle = brick.textColor;
-    ctx.font = brick.type === "tnt" ? "700 12px sans-serif" : "700 10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(brick.label, brick.x + brick.width / 2, brick.y + brick.height / 2 + 1);
+    drawMinecraftBlock(brick);
   }
+}
+
+function drawMinecraftBlock(brick) {
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+  ctx.fillRect(brick.x + 3, brick.y + 3, brick.width, brick.height);
+
+  ctx.fillStyle = brick.hp < brick.maxHp ? brick.damagedColor : brick.baseColor;
+  ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+
+  drawBlockFace(brick);
+
+  if (brick.type === "tnt") {
+    drawTntBlock(brick);
+  } else {
+    drawOrePixels(brick);
+  }
+
+  if (brick.hp < brick.maxHp) {
+    drawBrickCracks(brick);
+  }
+
+  ctx.strokeStyle = "#1f1712";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(brick.x + 1, brick.y + 1, brick.width - 2, brick.height - 2);
+  ctx.restore();
+}
+
+function drawBlockFace(brick) {
+  const pixel = 6;
+
+  ctx.fillStyle = brick.lightColor;
+  ctx.fillRect(brick.x, brick.y, brick.width, 4);
+  ctx.fillRect(brick.x, brick.y, 4, brick.height);
+
+  ctx.fillStyle = brick.darkColor;
+  ctx.fillRect(brick.x, brick.y + brick.height - 4, brick.width, 4);
+  ctx.fillRect(brick.x + brick.width - 4, brick.y, 4, brick.height);
+
+  for (let y = brick.y + 5; y < brick.y + brick.height - 5; y += pixel) {
+    for (let x = brick.x + 5; x < brick.x + brick.width - 5; x += pixel) {
+      const seed = (x * 17 + y * 31 + brick.row * 11 + brick.col * 7) % 5;
+      if (seed === 0) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.fillRect(x, y, 4, 4);
+      } else if (seed === 1) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.13)";
+        ctx.fillRect(x, y, 4, 4);
+      }
+    }
+  }
+}
+
+function drawOrePixels(brick) {
+  if (brick.type === "dirt" || brick.type === "stone") {
+    return;
+  }
+
+  const spots = [
+    [14, 6, 10, 6],
+    [36, 5, 8, 8],
+    [57, 8, 9, 6],
+    [24, 15, 9, 5],
+    [48, 15, 12, 5],
+  ];
+
+  for (const [offsetX, offsetY, width, height] of spots) {
+    ctx.fillStyle = brick.oreColor;
+    ctx.fillRect(brick.x + offsetX, brick.y + offsetY, width, height);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.38)";
+    ctx.fillRect(brick.x + offsetX, brick.y + offsetY, Math.max(3, width - 5), 2);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    ctx.fillRect(brick.x + offsetX + width - 3, brick.y + offsetY + 2, 3, Math.max(2, height - 2));
+  }
+}
+
+function drawTntBlock(brick) {
+  ctx.fillStyle = brick.lightColor;
+  ctx.fillRect(brick.x + 5, brick.y + 4, brick.width - 10, 5);
+  ctx.fillStyle = brick.darkColor;
+  ctx.fillRect(brick.x + 5, brick.y + brick.height - 8, brick.width - 10, 4);
+  ctx.fillStyle = "#fff7ed";
+  ctx.fillRect(brick.x + 7, brick.y + 9, brick.width - 14, 7);
+  ctx.fillStyle = "#111827";
+  ctx.font = "700 10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("TNT", brick.x + brick.width / 2, brick.y + 13);
 }
 
 function drawBrickCracks(brick) {
@@ -699,7 +847,6 @@ function drawCanvasMessage() {
     ready: "설정 후 게임 시작을 누르세요",
     "level-clear": `${LEVELS[state.levelIndex].name} 클리어!`,
     "final-win": "최종 승리! 모든 난이도를 완료했습니다",
-    "game-over": "게임 종료 - 다시 시작할 수 있습니다",
   };
 
   if (!messages[state.status]) {
@@ -780,6 +927,25 @@ nextButton.addEventListener("click", () => {
     Sound.unlock();
     difficultySelect.value = String(state.nextLevelIndex);
     startGame(state.nextLevelIndex);
+  }
+});
+
+resultRestartButton.addEventListener("click", () => {
+  Sound.unlock();
+  startGame(Number(difficultySelect.value));
+});
+
+resultCloseButton.addEventListener("click", hideResultModal);
+
+resultModal.addEventListener("click", (event) => {
+  if (event.target === resultModal) {
+    hideResultModal();
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !resultModal.hidden) {
+    hideResultModal();
   }
 });
 
