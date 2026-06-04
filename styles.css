@@ -1,6 +1,5 @@
 /* ============================================================
-   블록 브레이커 — 마인크래프트 픽셀아트 테마 (문서인 담당)
-   픽셀 폰트 · 블록 텍스처 · 입체 버튼 · 떠다니는 광석
+   블록 브레이커 — 마인크래프트 픽셀아트 테마
    ============================================================ */
 
 :root {
@@ -40,11 +39,9 @@ body {
   min-height: 100vh;
   image-rendering: pixelated;
   overflow-x: hidden;
-  /* 풍경은 body::before 한 곳에서만 그려진다 — 카드 안/바깥 분리감 제거 */
   background-color: #87b376;
 }
 
-/* 화면 전체에 단 한 번 깔리는 마인크래프트풍 들판 이미지 + 가독성용 어두운 오버레이 */
 body::before {
   content: "";
   position: fixed;
@@ -55,9 +52,6 @@ body::before {
   background:
     linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)),
     url("img/bg-field.jpg") center center / cover no-repeat;
-  /* 글씨가 배경에 묻혀서 안 읽히면 아래 한 줄을 켜기 (블러 강도/채도는 취향껏 조절):
-     filter: blur(10px) saturate(1.1);
-  */
 }
 
 /* ---------- 레이아웃 ---------- */
@@ -98,7 +92,7 @@ body::before {
   }
 }
 
-/* 카드는 이제 풍경이 없는 투명 레이아웃 컨테이너 — body 풍경이 그대로 비친다 */
+/* 카드는 풍경이 없는 투명 레이아웃 컨테이너 — body 풍경이 그대로 비친다 */
 .pe-card {
   position: relative;
   width: 100%;
@@ -106,7 +100,6 @@ body::before {
   min-height: 460px;
 }
 
-/* 카드 안 풍경 레이어와 비네트는 사용 안 함 (풍경은 body::before 하나) */
 .pe-blur-bg,
 .pe-vignette {
   display: none;
@@ -147,8 +140,14 @@ body::before {
   letter-spacing: 2px;
   /* 픽셀 외곽선 + 입체 떨어지는 그림자 */
   text-shadow:
-    -3px 0 0 #2a2422, 3px 0 0 #2a2422, 0 -3px 0 #2a2422, 0 3px 0 #2a2422,
-    -3px -3px 0 #2a2422, 3px -3px 0 #2a2422, -3px 3px 0 #2a2422, 3px 3px 0 #2a2422,
+    -3px 0 0 #2a2422,
+    3px 0 0 #2a2422,
+    0 -3px 0 #2a2422,
+    0 3px 0 #2a2422,
+    -3px -3px 0 #2a2422,
+    3px -3px 0 #2a2422,
+    -3px 3px 0 #2a2422,
+    3px 3px 0 #2a2422,
     6px 9px 0 rgba(0, 0, 0, 0.45);
 }
 
@@ -176,13 +175,20 @@ body::before {
   font-weight: 700;
   font-size: 14px;
   color: var(--gold);
-  text-shadow: 2px 2px 0 #4a3500, 3px 3px 0 rgba(0, 0, 0, 0.3);
+  text-shadow:
+    2px 2px 0 #4a3500,
+    3px 3px 0 rgba(0, 0, 0, 0.3);
   animation: tagline-bounce 1.6s ease-in-out infinite;
 }
 
 @keyframes tagline-bounce {
-  0%, 100% { transform: rotate(8deg) translateY(0); }
-  50% { transform: rotate(8deg) translateY(-4px); }
+  0%,
+  100% {
+    transform: rotate(8deg) translateY(0);
+  }
+  50% {
+    transform: rotate(8deg) translateY(-4px);
+  }
 }
 
 /* 세로 메뉴 */
@@ -221,8 +227,7 @@ body::before {
     radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.18) 0 2px, transparent 3px),
     radial-gradient(circle at 85% 25%, rgba(255, 255, 255, 0.14) 0 2px, transparent 3px),
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, #b2b2b2 0%, #8a8a8a 100%);
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px), linear-gradient(180deg, #b2b2b2 0%, #8a8a8a 100%);
   background-size:
     16px 16px,
     20px 20px,
@@ -237,7 +242,9 @@ body::before {
     inset -4px -4px 0 rgba(0, 0, 0, 0.45),
     0 0 0 3px #2a2422,
     0 6px 0 rgba(0, 0, 0, 0.4);
-  transition: transform 0.06s steps(1), filter 0.1s;
+  transition:
+    transform 0.06s steps(1),
+    filter 0.1s;
   image-rendering: pixelated;
 }
 
@@ -287,23 +294,21 @@ body::before {
   font-size: 12px;
   color: var(--paper);
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
-  pointer-events: none; /* 가운데 빈 공간은 클릭이 그 아래로 통과되도록 */
+  pointer-events: none;
 }
 
 .pe-footer > * {
   pointer-events: auto;
 }
 
-/* CSS만으로 그린 미니 지구본 */
+/* 미니 지구본 */
 .pe-globe {
   width: 28px;
   height: 28px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 35% 32%, #6cc36a 0 6px, transparent 7px),
-    radial-gradient(circle at 70% 60%, #6cc36a 0 5px, transparent 6px),
-    radial-gradient(circle at 28% 72%, #6cc36a 0 4px, transparent 5px),
-    radial-gradient(circle at 50% 50%, #4aa6d8 0%, #2f7aa8 100%);
+    radial-gradient(circle at 35% 32%, #6cc36a 0 6px, transparent 7px), radial-gradient(circle at 70% 60%, #6cc36a 0 5px, transparent 6px),
+    radial-gradient(circle at 28% 72%, #6cc36a 0 4px, transparent 5px), radial-gradient(circle at 50% 50%, #4aa6d8 0%, #2f7aa8 100%);
   border: 2px solid #1a1614;
   box-shadow:
     inset -3px -3px 0 rgba(0, 0, 0, 0.35),
@@ -325,15 +330,19 @@ body::before {
   background-color: #9a9a9a;
   background-image:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, #b2b2b2 0%, #8a8a8a 100%);
-  background-size: 100% 4px, 4px 100%, 100% 100%;
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px), linear-gradient(180deg, #b2b2b2 0%, #8a8a8a 100%);
+  background-size:
+    100% 4px,
+    4px 100%,
+    100% 100%;
   box-shadow:
     inset 3px 3px 0 rgba(255, 255, 255, 0.32),
     inset -3px -3px 0 rgba(0, 0, 0, 0.42),
     0 0 0 3px #2a2422,
     0 4px 0 rgba(0, 0, 0, 0.4);
-  transition: transform 0.06s steps(1), filter 0.1s;
+  transition:
+    transform 0.06s steps(1),
+    filter 0.1s;
   image-rendering: pixelated;
 }
 
@@ -364,24 +373,21 @@ body::before {
   background-color: #5fae3b;
   background-image:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, #7ac84d 0%, #4a8a2c 100%);
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 4px), linear-gradient(180deg, #7ac84d 0%, #4a8a2c 100%);
 }
 
 .mc-btn-stone {
   background-color: #9a9a9a;
   background-image:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, #b2b2b2 0%, #8a8a8a 100%);
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 4px), linear-gradient(180deg, #b2b2b2 0%, #8a8a8a 100%);
 }
 
 .mc-btn-gold {
   background-color: #e3a92a;
   background-image:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0 2px, transparent 2px 4px),
-    linear-gradient(180deg, #f5d057 0%, #b88521 100%);
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0 2px, transparent 2px 4px), linear-gradient(180deg, #f5d057 0%, #b88521 100%);
   color: #3a2700;
   text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.3);
 }
@@ -566,7 +572,7 @@ select option {
   font-size: 13px;
 }
 
-/* 점수판 — 5칸 인벤토리 슬롯 느낌 (압축) */
+/* 점수판 — 5칸 인벤토리 슬롯 */
 .scoreboard {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -620,11 +626,7 @@ select option {
   width: 24px;
   height: 20px;
   image-rendering: pixelated;
-  filter:
-    drop-shadow(2px 0 0 var(--ink))
-    drop-shadow(-2px 0 0 var(--ink))
-    drop-shadow(0 2px 0 var(--ink))
-    drop-shadow(0 -2px 0 var(--ink))
+  filter: drop-shadow(2px 0 0 var(--ink)) drop-shadow(-2px 0 0 var(--ink)) drop-shadow(0 2px 0 var(--ink)) drop-shadow(0 -2px 0 var(--ink))
     drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.45));
 }
 
@@ -688,11 +690,13 @@ select option {
 
 canvas {
   display: block;
-  /* 한 화면에 들어가도록 가로폭을 뷰포트 높이로 cap (위쪽 UI에 ~270px 예약).
-     1.5 = 캔버스 가로/세로 비(780/520) → 높이가 줄어들면 가로도 비례해서 줄어든다. */
-  width: 100%;
-  max-width: min(780px, calc((100vh - 270px) * 1.5));
+  /* 한 화면에 들어가도록 높이를 직접 cap (위쪽 UI·여백에 ~300px 예약).
+     aspect-ratio로 780:520 비를 유지하므로 높이가 줄면 가로도 비례해 줄어든다. */
+  width: auto;
   height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 300px);
+  aspect-ratio: 780 / 520;
   /* 캔버스 자체에 2px 검정 보더 (인벤토리 슬롯과 같은 픽셀 룩) */
   border: 2px solid var(--ink);
   image-rendering: pixelated;
@@ -842,7 +846,7 @@ canvas {
 }
 
 /* ============================================================
-   [추가] 실시간 광맥 완파 및 가속 알림 시각 효과
+   실시간 광맥 완파 및 가속 알림 시각 효과
    ============================================================ */
 
 /* 스코어보드의 상태 텍스트가 '광맥 완파! 공 가속!'일 때 적용될 동적 스타일 */
@@ -858,7 +862,8 @@ canvas {
 
 /* 만약 브라우저 호환성으로 contains가 안 먹힐 경우를 대비한 텍스트 점멸 애니메이션 정의 */
 @keyframes pixel-flash {
-  0%, 100% {
+  0%,
+  100% {
     color: var(--tnt);
     text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
   }
