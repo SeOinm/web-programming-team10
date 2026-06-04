@@ -386,11 +386,25 @@ body::before {
   text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.3);
 }
 
-/* 조작법 패널 */
+/* 조작법 / 게임 규칙 팝업 — 화면 정중앙 오버레이 */
 .howto-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.howto-panel[hidden] {
+  display: none;
+}
+
+/* 팝업 안쪽 종이 박스 */
+.howto-inner {
   max-width: 480px;
   width: 100%;
-  margin: 18px auto 0;
   text-align: left;
   background: var(--paper);
   border: 4px solid var(--ink);
@@ -400,6 +414,10 @@ body::before {
     6px 6px 0 rgba(0, 0, 0, 0.28);
   padding: 18px 22px;
   animation: pop-in 0.25s ease;
+}
+
+.howto-close {
+  margin-top: 16px;
 }
 
 .howto-panel h2 {

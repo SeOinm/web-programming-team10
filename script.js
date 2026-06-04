@@ -8,6 +8,12 @@ const rulesPanel = document.getElementById("rulesPanel");
 // 캔버스와 화면 요소들을 가져온다.
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+
+// 게임 로직이 사용하는 "논리 좌표 공간" (디자인 기준 해상도).
+// 공/패드/블록 좌표·충돌은 모두 이 공간(780x520)에서 계산한다.
+// 실제 캔버스 백킹스토어는 devicePixelRatio에 맞춰 따로 키우고(ctx 변환으로 매핑),
+// 덕분에 좌표는 그대로 두면서 텍스트/도형만 고해상도로 선명하게 렌더된다.
+const VIEW = { width: 780, height: 520 };
 const backgroundSelect = document.getElementById("backgroundSelect");
 const ballColorSelect = document.getElementById("ballColorSelect");
 const difficultySelect = document.getElementById("difficultySelect");
@@ -32,8 +38,9 @@ const LEVELS = [
   { name: "보통", floor: 2, speed: 4.5, timeLimit: 120, tntChance: 0.10 },
   { name: "어려움", floor: 3, speed: 5.7, timeLimit: 90, tntChance: 0.12 },
 ];
-const SPEED_UP_FACTOR = 1.12; // 한 줄 완파 시 공 속도 12% 가속
-const MAX_SPEED = 14;         // 최고 속도 상한선
+const SPEED_UP_FACTOR = 1.075; // 한 줄 완파 시 공 속도 7.5% 가속 (플레이감 보고 조정)
+const MAX_SPEED = 11;          // 최고 속도 상한선
+const TNT_BLAST_RADIUS = 2;    // TNT 폭발 반경 (1=3x3, 2=5x5)
 const DIAMOND_CHANCE = 0.08;
 const BEST_SCORE_KEY = "blockBreakerBestScore";
 const MAX_LIVES = 3;
@@ -60,7 +67,7 @@ const BRICK = {
 const PADDLE = {
   width: 116,
   height: 16,
-  y: canvas.height - 42,
+  y: VIEW.height - 42,
 };
 
 // 브라우저 기본 오디오로 효과음을 만든다. 별도 음원 파일 없이 즉시 재생된다.
@@ -179,7 +186,7 @@ const state = {
   nextLevelIndex: null,
   animationId: null,
   runId: 0,
-  paddleX: (canvas.width - PADDLE.width) / 2,
+  paddleX: (VIEW.width - PADDLE.width) / 2,
   ball: createBall(LEVELS[0].speed),
   bricks: createBricks(0),
   clearedRows: new Set(),
@@ -188,7 +195,7 @@ const state = {
 // 새 공을 만든다. 시작 위치는 패드 위쪽이다.
 function createBall(speed) {
   return {
-    x: canvas.width / 2,
+    x: VIEW.width / 2,
     y: PADDLE.y - 18,
     radius: 8,
     dx: speed,
@@ -271,7 +278,9 @@ function pickBlockType(level) {
 }
 
 // 시작 버튼을 누르거나 다음 난이도를 시작할 때 새 게임을 준비한다.
-function startGame(levelIndex = Number(difficultySelect.value)) {
+// resetScore=true(기본): 타이틀/재시작 → 점수 0부터
+// resetScore=false        : 다음 스테이지 진입 → 점수 누적(보존)
+function startGame(levelIndex = Number(difficultySelect.value), resetScore = true) {
   const level = LEVELS[levelIndex];
 
   hideResultModal();
@@ -283,12 +292,14 @@ function startGame(levelIndex = Number(difficultySelect.value)) {
   state.status = "running";
   state.runId += 1;
   state.levelIndex = levelIndex;
-  state.score = 0;
+  if (resetScore) {
+    state.score = 0;
+  }
   state.lives = MAX_LIVES;
   state.timeLeft = level.timeLimit;
   state.lastTime = 0;
   state.nextLevelIndex = null;
-  state.paddleX = (canvas.width - PADDLE.width) / 2;
+  state.paddleX = (VIEW.width - PADDLE.width) / 2;
   state.ball = createBall(level.speed);
   state.bricks = createBricks(levelIndex);
   state.clearedRows = new Set();
@@ -347,9 +358,9 @@ function updateBall(deltaSeconds) {
   ball.x += ball.dx * frameScale;
   ball.y += ball.dy * frameScale;
 
-  if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= canvas.width) {
+  if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= VIEW.width) {
     ball.dx *= -1;
-    ball.x = clamp(ball.x, ball.radius, canvas.width - ball.radius);
+    ball.x = clamp(ball.x, ball.radius, VIEW.width - ball.radius);
     Sound.bounce();
   }
 
@@ -362,7 +373,7 @@ function updateBall(deltaSeconds) {
   handlePaddleCollision();
   handleBrickCollision();
 
-  if (ball.y - ball.radius > canvas.height) {
+  if (ball.y - ball.radius > VIEW.height) {
     loseLife();
   }
 }
@@ -378,7 +389,7 @@ function loseLife() {
 
   const currentSpeed = Math.sqrt(state.ball.dx * state.ball.dx + state.ball.dy * state.ball.dy);
   const resetSpeed = clamp(currentSpeed / Math.SQRT2, LEVELS[state.levelIndex].speed, MAX_SPEED);
-  state.paddleX = (canvas.width - PADDLE.width) / 2;
+  state.paddleX = (VIEW.width - PADDLE.width) / 2;
   state.ball = createBall(resetSpeed);
   state.lastTime = 0;
   updateHud(`공을 놓쳤습니다! 남은 체력 ${state.lives}`);
@@ -477,9 +488,10 @@ function explodeTnt(startBrick) {
 }
 
 function getNearbyBricks(centerBrick) {
+  // 실제 존재하는 블록만 filter로 추리므로, 가장자리에서도 배열 범위 밖 접근이 없다.
   return state.bricks.filter((brick) => (
-    Math.abs(brick.row - centerBrick.row) <= 1
-    && Math.abs(brick.col - centerBrick.col) <= 1
+    Math.abs(brick.row - centerBrick.row) <= TNT_BLAST_RADIUS
+    && Math.abs(brick.col - centerBrick.col) <= TNT_BLAST_RADIUS
   ));
 }
 
@@ -594,6 +606,26 @@ function updateHealthMeter() {
   healthText.setAttribute("aria-label", `체력 ${state.lives}`);
 }
 
+// 캔버스 백킹스토어를 표시 크기 × devicePixelRatio로 맞춰 선명하게 만든다.
+// 이후 ctx 변환으로 "논리 좌표(VIEW)"를 실제 픽셀 버퍼에 매핑하므로,
+// 게임 로직의 좌표/충돌 계산(VIEW 기준)은 전혀 바뀌지 않는다.
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  // 게임화면이 숨겨져 있어 크기가 0이면 논리 크기로 폴백한다.
+  const cssWidth = rect.width || VIEW.width;
+  const cssHeight = rect.height || VIEW.height;
+
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+
+  // 논리 좌표(VIEW.width x VIEW.height) → 실제 픽셀 버퍼로 스케일 매핑.
+  ctx.setTransform(canvas.width / VIEW.width, 0, 0, canvas.height / VIEW.height, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+
+  draw();
+}
+
 // 캔버스 전체를 다시 그린다.
 function draw() {
   drawBackground();
@@ -612,29 +644,29 @@ function drawBackground() {
 
   // 1) 바탕을 칠한다.
   ctx.fillStyle = base;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
 
   // 2) 위에서 아래로 갈수록 살짝 어두워지는 동굴 그라데이션을 얹는다.
-  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  const grad = ctx.createLinearGradient(0, 0, 0, VIEW.height);
   grad.addColorStop(0, "rgba(0,0,0,0)");
   grad.addColorStop(1, dark ? "rgba(0,0,0,0.35)" : "rgba(40,30,20,0.14)");
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
 
   // 3) 16px 픽셀 격자를 그려 마인크래프트 블록 느낌을 준다.
   const cell = 26;
   ctx.strokeStyle = dark ? "rgba(255,255,255,0.05)" : "rgba(23,32,51,0.08)";
   ctx.lineWidth = 1;
-  for (let x = 0; x <= canvas.width; x += cell) {
+  for (let x = 0; x <= VIEW.width; x += cell) {
     ctx.beginPath();
     ctx.moveTo(x + 0.5, 0);
-    ctx.lineTo(x + 0.5, canvas.height);
+    ctx.lineTo(x + 0.5, VIEW.height);
     ctx.stroke();
   }
-  for (let y = 0; y <= canvas.height; y += cell) {
+  for (let y = 0; y <= VIEW.height; y += cell) {
     ctx.beginPath();
     ctx.moveTo(0, y + 0.5);
-    ctx.lineTo(canvas.width, y + 0.5);
+    ctx.lineTo(VIEW.width, y + 0.5);
     ctx.stroke();
   }
 
@@ -646,13 +678,13 @@ function drawBackground() {
 function drawBedrock(dark) {
   const cell = 26;
   const rows = 2;
-  const startY = canvas.height - rows * cell;
+  const startY = VIEW.height - rows * cell;
   const shades = dark
     ? ["#2b2b33", "#202028", "#34343d"]
     : ["#6b6b73", "#5a5a61", "#7a7a82"];
 
   for (let row = 0; row < rows; row += 1) {
-    for (let x = 0; x < canvas.width; x += cell) {
+    for (let x = 0; x < VIEW.width; x += cell) {
       // 의사난수로 음영을 골라 울퉁불퉁한 돌 느낌을 낸다. (위치 기반이라 매 프레임 동일)
       const seed = (x * 13 + row * 7) % shades.length;
       ctx.fillStyle = shades[seed];
@@ -860,7 +892,7 @@ function drawCanvasMessage() {
   ctx.fillStyle = "#172033";
   ctx.font = "700 24px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(messages[state.status], canvas.width / 2, 270);
+  ctx.fillText(messages[state.status], VIEW.width / 2, 270);
   ctx.restore();
 }
 
@@ -887,9 +919,9 @@ function clamp(value, min, max) {
 // 마우스나 터치 위치에 맞게 패드를 좌우로 움직인다.
 function movePaddle(clientX) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
+  const scaleX = VIEW.width / rect.width;
   const x = (clientX - rect.left) * scaleX;
-  state.paddleX = clamp(x - PADDLE.width / 2, 0, canvas.width - PADDLE.width);
+  state.paddleX = clamp(x - PADDLE.width / 2, 0, VIEW.width - PADDLE.width);
 
   if (state.status !== "running") {
     draw();
@@ -926,7 +958,7 @@ nextButton.addEventListener("click", () => {
   if (state.nextLevelIndex !== null) {
     Sound.unlock();
     difficultySelect.value = String(state.nextLevelIndex);
-    startGame(state.nextLevelIndex);
+    startGame(state.nextLevelIndex, false); // 다음 스테이지: 점수 누적 유지
   }
 });
 
@@ -952,8 +984,11 @@ window.addEventListener("keydown", (event) => {
 // [수정] 브라우저 화면(DOM)이 완벽히 로드된 후 안전하게 초기화 작업을 진행한다.
 window.addEventListener("DOMContentLoaded", () => {
   updateHud("대기 중");
-  draw();
+  resizeCanvas();
 });
+
+// 창 크기가 바뀌면 해상도 보정을 다시 적용한다.
+window.addEventListener("resize", resizeCanvas);
 // ====== [추가] 메인 화면 인터랙션 및 화면 전환 리스너 ======
 // 1) [게임 시작] 버튼을 누르면 첫 화면을 숨기고 진짜 게임 화면을 보여줍니다.
 enterButton.addEventListener("click", () => {
@@ -962,23 +997,13 @@ enterButton.addEventListener("click", () => {
   state.status = "ready";      // 게임 상태를 대기 중으로 설정
   
   // [보완] 공의 색상 선택 값을 현재 select 박스 값으로 다시 한 번 동기화
-  state.ball.color = ballColorSelect.value; 
+  state.ball.color = ballColorSelect.value;
   updateHud("대기 중");         // 상단 UI 스코어보드 텍스트 갱신
-  
-  draw();                      // 초기 캔버스 화면 그리기
+
+  // 게임화면이 막 보이게 됐으니, 실제 표시 크기 기준으로 해상도 보정 후 그린다.
+  resizeCanvas();
 });
 
-// 2) 조작법 버튼 토글 (열려있으면 닫고, 닫혀있으면 열기)
-howtoButton.addEventListener("click", () => {
-  howtoPanel.hidden = !howtoPanel.hidden;
-  if (typeof rulesPanel !== "undefined") rulesPanel.hidden = true; 
-  // 규칙 창은 닫기
-});
-
-// 3) 게임 규칙 버튼 토글
-rulesButton.addEventListener("click", () => {
-  rulesPanel.hidden = !rulesPanel.hidden;
-  if (typeof howtoPanel !== "undefined") howtoPanel.hidden = true; 
-  // 조작법 창은 닫기
-});
+// 2) 조작법 / 게임 규칙 패널 토글은 ui.js가 전담한다.
+//    (여기서 또 핸들러를 달면 클릭이 두 번 토글돼 열렸다 즉시 닫혀버림 → 제거)
 // ============================================================

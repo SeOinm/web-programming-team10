@@ -1,40 +1,25 @@
 // ============================================================
-// UI 전용 스크립트 (문서인 담당)
-// 시작 화면 ↔ 게임 화면 전환과 조작법 패널 토글만 담당한다.
-// 게임 로직(script.js)과는 완전히 분리되어 있어 충돌 없이 합쳐진다.
+// UI 전용 스크립트
+// 게임 화면 → 메뉴(뒤로가기)와 조작법/게임 규칙 팝업 토글만 담당한다.
+// 메뉴 → 게임 화면 전환과 실제 게임 시작은 script.js가 전담한다.
 // ============================================================
 
 (function () {
   const startScreen = document.getElementById("startScreen");
   const gameScreen = document.getElementById("gameScreen");
-  const enterButton = document.getElementById("startButton");
   const backButton = document.getElementById("backButton");
   const howtoButton = document.getElementById("howtoButton");
   const howtoPanel = document.getElementById("howtoPanel");
   const rulesButton = document.getElementById("rulesButton");
   const rulesPanel = document.getElementById("rulesPanel");
 
-  // 시작 화면 → 게임 화면
-function showGame() {
-    startScreen.hidden = true;
-    gameScreen.hidden = false;
-    
-    // [보완] 화면이 바뀔 때 기존에 돌고 있던 게임을 대기 상태(ready)로 깔끔하게 셋팅해 줌
-    if (typeof window.updateHud === "function") {
-      window.updateHud("대기 중");
-    }
-    if (typeof window.draw === "function") {
-      window.draw();
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
   // 게임 화면 → 시작 화면
-function showStart() {
+  // (시작 화면 → 게임 화면 전환과 실제 게임 시작은 script.js가 전담)
+  function showStart() {
     gameScreen.hidden = true;
     startScreen.hidden = false;
-    
-    // [보완] 메인 메뉴로 나가면 게임 루프와 타이머를 즉시 정지시킴
+
+    // 메인 메뉴로 나가면 게임 루프와 타이머를 즉시 정지시킴
     if (window.state) {
       window.state.status = "ready";
       if (window.state.animationId !== null) {
@@ -44,7 +29,6 @@ function showStart() {
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
-  enterButton.addEventListener("click", showGame);
   backButton.addEventListener("click", showStart);
 
   // 두 패널은 동시에 열리지 않는다 (한쪽 열면 다른 쪽 닫힘)
@@ -59,16 +43,37 @@ function showStart() {
   }
 
   howtoButton.addEventListener("click", () => {
-    togglePanel(
-      howtoPanel, howtoButton, "조작법 닫기", "조작법",
-      rulesPanel, rulesButton, "게임 규칙"
-    );
+    togglePanel(howtoPanel, howtoButton, "조작법 닫기", "조작법", rulesPanel, rulesButton, "게임 규칙");
   });
 
   rulesButton.addEventListener("click", () => {
-    togglePanel(
-      rulesPanel, rulesButton, "게임 규칙 닫기", "게임 규칙",
-      howtoPanel, howtoButton, "조작법"
-    );
+    togglePanel(rulesPanel, rulesButton, "게임 규칙 닫기", "게임 규칙", howtoPanel, howtoButton, "조작법");
+  });
+
+  // 패널 닫기 (닫기 버튼 · 어두운 배경 클릭 · ESC)
+  function closePanel(panel, button, closedLabel) {
+    panel.hidden = true;
+    button.textContent = closedLabel;
+  }
+
+  function bindPanelClose(panel, button, closedLabel) {
+    // 배경(오버레이) 직접 클릭 시 닫힘 — 안쪽 박스 클릭은 통과
+    panel.addEventListener("click", (e) => {
+      if (e.target === panel) closePanel(panel, button, closedLabel);
+    });
+    // 내부 닫기 버튼
+    const closeBtn = panel.querySelector("[data-close-panel]");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => closePanel(panel, button, closedLabel));
+    }
+  }
+
+  bindPanelClose(howtoPanel, howtoButton, "조작법");
+  bindPanelClose(rulesPanel, rulesButton, "게임 규칙");
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!howtoPanel.hidden) closePanel(howtoPanel, howtoButton, "조작법");
+    if (!rulesPanel.hidden) closePanel(rulesPanel, rulesButton, "게임 규칙");
   });
 })();
