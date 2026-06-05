@@ -11,10 +11,10 @@
   </head>
   <body>
     <main class="app-shell">
-      <!-- ============ 시작 화면 (마인크래프트 포켓에디션 풍) ============ -->
+      <!-- ============ 시작 화면  ============ -->
       <section id="startScreen" class="screen start-screen">
         <div class="pe-card">
-          <!-- CSS만으로 그린 흐릿한 풍경 배경 -->
+          <!-- 풍경 배경 -->
           <div class="pe-blur-bg" aria-hidden="true"></div>
           <div class="pe-vignette" aria-hidden="true"></div>
           <div class="pe-content">
@@ -36,34 +36,39 @@
           </div>
         </div>
 
-        <!-- 화면 양 끝에 고정되는 푸터 (반응형 inset) -->
+        <!-- 화면 양 끝 푸터 -->
         <div class="pe-footer">
           <span class="pe-copy">©Team10</span>
           <div class="pe-globe" aria-hidden="true"></div>
         </div>
 
-        <!-- 조작법 패널 (접힘) -->
+        <!-- 조작법 패널 (팝업) -->
         <div id="howtoPanel" class="howto-panel" hidden>
-          <h2>조작법 &amp; 설정</h2>
-          <ul>
-            <li><b>마우스 / 터치</b>로 패들을 좌우로 움직입니다.</li>
-            <li>공이 <b>바닥</b>에 닿거나 <b>제한 시간</b>이 끝나면 게임 종료.</li>
-            <li>블록을 부술수록 점수가 쌓이고, 난이도가 오를수록 공이 빨라집니다.</li>
-            <li><b>배경 · 공 색 · 난이도</b> 설정은 게임 시작 후 상단 패널에서 바꿀 수 있어요.</li>
-          </ul>
+          <div class="howto-inner">
+            <h2>조작법 &amp; 설정</h2>
+            <ul>
+              <li><b>마우스</b>로 패들을 좌우로 움직입니다.</li>
+              <li>공이 <b>바닥</b>에 닿거나 <b>제한 시간</b>이 끝나면 게임 종료.</li>
+              <li>블록을 부술수록 점수가 쌓이고, 난이도가 오를수록 공이 빨라집니다.</li>
+              <li><b>배경 · 공 색 · 난이도</b> 설정은 게임 시작 후 상단 패널에서 바꿀 수 있습니다.</li>
+            </ul>
+            <button type="button" class="mc-btn mc-btn-stone howto-close" data-close-panel="howto">닫기</button>
+          </div>
         </div>
-   
-        <!-- 게임 규칙 패널 (수정) -->
-       <div id="rulesPanel" class="howto-panel" hidden>
-         <h2>⛏ 게임 규칙</h2>
-         <ul>
-            <li>흙 10점, 돌 30점, 철광석 60점, 금광석 100점, 다이아 200점을 얻습니다.</li>
-            <li><b>TNT</b>는 점수는 없지만 맞으면 주변 3x3 블록을 연쇄 폭발시킵니다.</li>
-            <li>블록 한 줄(Row)을 완벽히 없앨 때마다 <b>공의 속도가 12%씩 실시간으로 가속</b>됩니다.</li>
-          </ul>
+
+        <!-- 게임 규칙 패널 (팝업) -->
+        <div id="rulesPanel" class="howto-panel" hidden>
+          <div class="howto-inner">
+            <h2>⛏ 게임 규칙</h2>
+            <ul>
+              <li>흙 10점, 돌 30점, 철광석 60점, 금광석 100점, 다이아 200점을 얻습니다.</li>
+              <li><b>TNT</b>는 점수는 없지만 맞으면 주변 5x5 블록을 연쇄 폭발시킵니다.</li>
+              <li>블록 한 줄을 완벽히 없앨 때마다 <b>공의 속도가 가속</b>됩니다.</li>
+            </ul>
+            <button type="button" class="mc-btn mc-btn-stone howto-close" data-close-panel="rules">닫기</button>
+          </div>
         </div>
       </section>
-
 
       <!-- ============ 게임 화면 ============ -->
       <section id="gameScreen" class="screen game-screen" hidden>
@@ -75,7 +80,7 @@
         <!-- 설정 패널 -->
         <section class="control-panel" aria-label="게임 설정">
           <label class="ctrl">
-            <span class="ctrl-label">동굴 배경</span>
+            <span class="ctrl-label">배경화면</span>
             <select id="backgroundSelect">
               <option value="#7ec0ee">맑은 하늘</option>
               <option value="#3a2e25">흙 동굴</option>
@@ -85,12 +90,12 @@
           </label>
 
           <label class="ctrl">
-            <span class="ctrl-label">공 색상</span>
+            <span class="ctrl-label">보석 종류</span>
             <select id="ballColorSelect">
               <option value="#e63946">레드스톤</option>
-              <option value="#48cae4">다이아</option>
-              <option value="#70e000">에메랄드</option>
               <option value="#ffba08">골드</option>
+              <option value="#70e000">에메랄드</option>
+              <option value="#48cae4">다이아</option>
             </select>
           </label>
 
@@ -167,9 +172,16 @@
       </section>
     </main>
 
-    <!-- 화면 전환 스크립트 (UI 전용, 게임 로직과 분리) -->
+    <!-- 게임 스크립트 (의존성 순서대로 로드: config → engine → render → main) -->
+    <script src="config.js"></script>
+    <!-- DOM 참조·상수·효과음·유틸 -->
+    <script src="engine.js"></script>
+    <!-- 게임 상태와 핵심 로직 -->
+    <script src="render.js"></script>
+    <!-- 그리기·HUD·모달 -->
+    <!-- 화면 전환/팝업 -->
     <script src="ui.js"></script>
-    <!-- 게임 엔진 (기존 로직 그대로) -->
-    <script src="script.js"></script>
+    <!-- 입력·이벤트 연결·초기화 -->
+    <script src="main.js"></script>
   </body>
 </html>
