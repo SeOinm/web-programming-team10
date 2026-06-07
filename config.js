@@ -39,13 +39,14 @@ const resultCloseButton = document.getElementById("resultCloseButton");
 
 // 난이도별 공 속도와 제한 시간을 정한다.
 const LEVELS = [
-  { name: "쉬움", floor: 1, speed: 3.4, timeLimit: 180, tntChance: 0.08 },
-  { name: "보통", floor: 2, speed: 4.5, timeLimit: 120, tntChance: 0.1 },
-  { name: "어려움", floor: 3, speed: 5.7, timeLimit: 90, tntChance: 0.12 },
+  { name: "쉬움", floor: 1, speed: 3.4, timeLimit: 180 },
+  { name: "보통", floor: 2, speed: 4.5, timeLimit: 120 },
+  { name: "어려움", floor: 3, speed: 5.7, timeLimit: 90 },
 ];
 const SPEED_UP_FACTOR = 1.04; // 한 줄 완파 시 공 속도 4% 가속
 const MAX_SPEED = 9; // 최고 속도 상한선
 const TNT_BLAST_RADIUS = 2; // TNT 폭발 반경 (1=3x3, 2=5x5)
+const TNT_COUNT = 5; // 한 판에 배치할 TNT 개수
 const DIAMOND_CHANCE = 0.08;
 const BEST_SCORE_KEY = "blockBreakerBestScore";
 const MAX_LIVES = 3;
@@ -133,13 +134,15 @@ function ballDamageFor(color) {
 
 // 벽돌의 줄 수, 크기, 간격을 정한다.
 const BRICK = {
-  rows: 5,
+  rows: 6,
   cols: 8,
+  count: 40,
+  minPerRow: 4,
   width: 78,
   height: 22,
   padding: 12,
   offsetTop: 64,
-  offsetLeft: 48,
+  offsetLeft: 36,
 };
 
 // 아래쪽 검정 패드의 크기와 위치를 정한다.

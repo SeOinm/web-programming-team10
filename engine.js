@@ -19,6 +19,7 @@ const state = {
   ball: createBall(LEVELS[0].speed),
   bricks: createBricks(0),
   clearedRows: new Set(),
+  effects: [],
 };
 
 // 새 공을 만든다. 시작 위치는 패드 위쪽이다.
@@ -37,27 +38,73 @@ function createBall(speed) {
 function createBricks(levelIndex = 0) {
   const level = LEVELS[levelIndex];
   const bricks = [];
+  const slots = createBrickSlots();
+
+  for (const slot of slots) {
+    const typeKey = pickBlockType(level);
+    const brick = {
+      x: BRICK.offsetLeft + slot.col * (BRICK.width + BRICK.padding),
+      y: BRICK.offsetTop + slot.row * (BRICK.height + BRICK.padding),
+      width: BRICK.width,
+      height: BRICK.height,
+      active: true,
+      row: slot.row,
+      col: slot.col,
+    };
+    applyBlockType(brick, typeKey);
+    bricks.push(brick);
+  }
+
+  placeTntBlocks(bricks);
+
+  return bricks;
+}
+
+function createBrickSlots() {
+  const selected = [];
+  const usedKeys = new Set();
 
   for (let row = 0; row < BRICK.rows; row += 1) {
-    for (let col = 0; col < BRICK.cols; col += 1) {
-      const typeKey = pickBlockType(level);
-      const brick = {
-        x: BRICK.offsetLeft + col * (BRICK.width + BRICK.padding),
-        y: BRICK.offsetTop + row * (BRICK.height + BRICK.padding),
-        width: BRICK.width,
-        height: BRICK.height,
-        active: true,
-        row: row,
-        col: col,
-      };
-      applyBlockType(brick, typeKey);
-      bricks.push(brick);
+    const rowSlots = shuffleSlots(createRowSlots(row));
+    for (const slot of rowSlots.slice(0, BRICK.minPerRow)) {
+      selected.push(slot);
+      usedKeys.add(slotKey(slot));
     }
   }
 
-  ensureTntBlock(bricks);
+  const remainingSlots = shuffleSlots(createAllSlots().filter((slot) => !usedKeys.has(slotKey(slot))));
+  for (const slot of remainingSlots) {
+    if (selected.length >= BRICK.count) {
+      break;
+    }
+    selected.push(slot);
+  }
 
-  return bricks;
+  return shuffleSlots(selected);
+}
+
+function createRowSlots(row) {
+  const slots = [];
+  for (let col = 0; col < BRICK.cols; col += 1) {
+    slots.push({ row, col });
+  }
+  return slots;
+}
+
+function createAllSlots() {
+  const slots = [];
+  for (let row = 0; row < BRICK.rows; row += 1) {
+    slots.push(...createRowSlots(row));
+  }
+  return slots;
+}
+
+function shuffleSlots(slots) {
+  return [...slots].sort(() => Math.random() - 0.5);
+}
+
+function slotKey(slot) {
+  return `${slot.row}:${slot.col}`;
 }
 
 function applyBlockType(brick, typeKey) {
@@ -76,20 +123,48 @@ function applyBlockType(brick, typeKey) {
   brick.score = type.score;
 }
 
-function ensureTntBlock(bricks) {
-  if (bricks.some((brick) => brick.type === "tnt")) {
-    return;
+function placeTntBlocks(bricks) {
+  let tntBricks = [];
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    tntBricks = selectSpacedTntBricks([...bricks].sort(() => Math.random() - 0.5));
+    if (tntBricks.length >= TNT_COUNT) {
+      break;
+    }
   }
 
-  const index = Math.floor(Math.random() * bricks.length);
-  applyBlockType(bricks[index], "tnt");
+  if (tntBricks.length < TNT_COUNT) {
+    tntBricks = selectSpacedTntBricks(bricks);
+  }
+
+  for (const brick of tntBricks.slice(0, TNT_COUNT)) {
+    applyBlockType(brick, "tnt");
+  }
+}
+
+function selectSpacedTntBricks(candidates) {
+  const selected = [];
+
+  for (const brick of candidates) {
+    if (selected.length >= TNT_COUNT) {
+      break;
+    }
+
+    if (selected.some((tnt) => isInsideSameThreeByThree(tnt, brick))) {
+      continue;
+    }
+
+    selected.push(brick);
+  }
+
+  return selected;
+}
+
+function isInsideSameThreeByThree(a, b) {
+  return Math.abs(a.row - b.row) <= 1 && Math.abs(a.col - b.col) <= 1;
 }
 
 function pickBlockType(level) {
-  if (Math.random() < level.tntChance) {
-    return "tnt";
-  }
-
   const roll = Math.random();
   if (level.floor === 1) {
     return roll < 0.65 ? "dirt" : "stone";
@@ -132,6 +207,7 @@ function startGame(levelIndex = Number(difficultySelect.value), resetScore = tru
   state.ball = createBall(level.speed);
   state.bricks = createBricks(levelIndex);
   state.clearedRows = new Set();
+  state.effects = [];
 
   nextButton.hidden = true;
   updateHud("진행 중");
@@ -170,6 +246,7 @@ function gameLoop(timestamp, runId) {
 
   if (state.status === "running") {
     updateBall(deltaSeconds);
+    updateEffects(deltaSeconds);
   }
 
   draw();
@@ -179,6 +256,12 @@ function gameLoop(timestamp, runId) {
   } else {
     state.animationId = null;
   }
+}
+
+function updateEffects(deltaSeconds) {
+  state.effects = state.effects
+    .map((effect) => ({ ...effect, age: effect.age + deltaSeconds }))
+    .filter((effect) => effect.age < effect.duration);
 }
 
 // 남은 시간을 줄이고 시간이 끝나면 게임을 종료한다.
@@ -295,20 +378,21 @@ function damageBrick(brick) {
 }
 
 function explodeTnt(startBrick) {
-  const queue = [startBrick];
+  const queue = [{ brick: startBrick, delayStep: 0 }];
   const explodedKeys = new Set();
   const affectedRows = new Set();
   let destroyedCount = 0;
   let damagedCount = 0;
 
   while (queue.length > 0) {
-    const tnt = queue.shift();
+    const { brick: tnt, delayStep } = queue.shift();
     const key = `${tnt.row}:${tnt.col}`;
     if (!tnt.active || tnt.type !== "tnt" || explodedKeys.has(key)) {
       continue;
     }
 
     explodedKeys.add(key);
+    addTntExplosionEffect(tnt, delayStep);
     destroyBrick(tnt);
     affectedRows.add(tnt.row);
     destroyedCount += 1;
@@ -319,7 +403,7 @@ function explodeTnt(startBrick) {
       }
 
       if (nearby.type === "tnt") {
-        queue.push(nearby);
+        queue.push({ brick: nearby, delayStep: delayStep + 1 });
         continue;
       }
 
@@ -335,6 +419,17 @@ function explodeTnt(startBrick) {
   Sound.explosion();
   const damageMessage = damagedCount > 0 ? ` / ${damagedCount}개 손상` : "";
   finishBrickChanges(affectedRows, `TNT 폭발! ${destroyedCount}개 파괴${damageMessage}`);
+}
+
+function addTntExplosionEffect(brick, delayStep = 0) {
+  state.effects.push({
+    type: "tnt",
+    x: brick.x + brick.width / 2,
+    y: brick.y + brick.height / 2,
+    age: -delayStep * 0.14,
+    duration: 0.58,
+    seed: Math.random(),
+  });
 }
 
 function applyTntBlastDamage(brick) {

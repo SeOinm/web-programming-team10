@@ -81,6 +81,7 @@ function resizeCanvas() {
 function draw() {
   drawBackground();
   drawBricks();
+  drawEffects();
   drawPaddle();
   drawBall();
   drawCanvasMessage();
@@ -162,6 +163,88 @@ function drawBricks() {
 
     drawMinecraftBlock(brick);
   }
+}
+
+function drawEffects() {
+  for (const effect of state.effects) {
+    if (effect.type === "tnt") {
+      drawTntExplosion(effect);
+    }
+  }
+}
+
+function drawTntExplosion(effect) {
+  if (effect.age < 0) {
+    return;
+  }
+
+  const progress = clamp(effect.age / effect.duration, 0, 1);
+  const flash = Math.max(0, 1 - progress * 4);
+  const smokeAlpha = Math.max(0, 0.8 - progress * 0.75);
+  const shockRadius = 16 + progress * 60;
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+
+  ctx.globalAlpha = 0.55 * (1 - progress);
+  ctx.strokeStyle = "#3b3028";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(effect.x - shockRadius / 2, effect.y - shockRadius / 2, shockRadius, shockRadius);
+
+  ctx.globalAlpha = flash;
+  ctx.fillStyle = "#fff7ed";
+  ctx.fillRect(effect.x - 18, effect.y - 12, 36, 24);
+  ctx.fillStyle = "#f5c542";
+  ctx.fillRect(effect.x - 24, effect.y - 6, 48, 12);
+  ctx.fillRect(effect.x - 8, effect.y - 22, 16, 44);
+  ctx.fillStyle = "#f97316";
+  ctx.fillRect(effect.x - 14, effect.y - 14, 28, 28);
+
+  const smokeBlocks = [
+    [-26, -14, 18],
+    [-12, -24, 20],
+    [8, -20, 22],
+    [24, -8, 18],
+    [14, 10, 24],
+    [-8, 16, 22],
+    [-30, 8, 20],
+    [0, -2, 26],
+  ];
+
+  ctx.globalAlpha = smokeAlpha;
+  for (let index = 0; index < smokeBlocks.length; index += 1) {
+    const [offsetX, offsetY, baseSize] = smokeBlocks[index];
+    const spread = progress * (14 + index * 1.7);
+    const jitter = ((effect.seed * 100 + index * 19) % 9) - 4;
+    const x = effect.x + offsetX + Math.sign(offsetX || 1) * spread + jitter;
+    const y = effect.y + offsetY + Math.sign(offsetY || 1) * spread * 0.55 - jitter;
+    const size = Math.max(6, baseSize - progress * 8);
+    ctx.fillStyle = index % 3 === 0 ? "#4b4038" : index % 3 === 1 ? "#6b6259" : "#2f2a26";
+    ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), Math.round(size), Math.round(size));
+  }
+
+  ctx.globalAlpha = Math.max(0, 0.9 - progress * 1.6);
+  const debris = [
+    [-1, -0.2],
+    [-0.6, -0.8],
+    [0.7, -0.7],
+    [1, 0.1],
+    [-0.4, 0.8],
+    [0.5, 0.9],
+  ];
+  for (let index = 0; index < debris.length; index += 1) {
+    const [dx, dy] = debris[index];
+    const distance = 18 + progress * 42;
+    ctx.fillStyle = index % 2 === 0 ? "#241f1b" : "#8d1f17";
+    ctx.fillRect(
+      Math.round(effect.x + dx * distance),
+      Math.round(effect.y + dy * distance),
+      7,
+      7,
+    );
+  }
+
+  ctx.restore();
 }
 
 function drawMinecraftBlock(brick) {
