@@ -19,7 +19,7 @@ function showResultModal(title, message) {
   const bestScore = saveBestScore(state.score);
 
   resultTitle.textContent = title;
-  resultMessage.textContent = message;
+  resultMessage.textContent = createResultMessage(message);
   finalScoreText.textContent = String(state.score);
   bestScoreText.textContent = String(bestScore);
   resultModal.hidden = false;
@@ -28,6 +28,12 @@ function showResultModal(title, message) {
 
 function hideResultModal() {
   resultModal.hidden = true;
+}
+
+function createResultMessage(message) {
+  return message
+    .replace(/\s*!?\s*게임 종료\s*$/u, "")
+    .trim();
 }
 
 // 점수판에 점수, 난이도, 시간, 상태를 표시한다.

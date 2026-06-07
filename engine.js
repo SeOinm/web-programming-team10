@@ -138,6 +138,21 @@ function startGame(levelIndex = Number(difficultySelect.value), resetScore = tru
   state.animationId = requestAnimationFrame((timestamp) => gameLoop(timestamp, state.runId));
 }
 
+function stopGameForMenu() {
+  state.runId += 1;
+  state.status = "ready";
+  state.nextLevelIndex = null;
+
+  if (state.animationId !== null) {
+    cancelAnimationFrame(state.animationId);
+    state.animationId = null;
+  }
+
+  nextButton.hidden = true;
+  hideResultModal();
+  updateHud("대기 중");
+}
+
 // requestAnimationFrame으로 계속 호출되는 메인 게임 반복 함수이다.
 function gameLoop(timestamp, runId) {
   if (runId !== state.runId || state.status !== "running") {
@@ -284,6 +299,7 @@ function explodeTnt(startBrick) {
   const explodedKeys = new Set();
   const affectedRows = new Set();
   let destroyedCount = 0;
+  let damagedCount = 0;
 
   while (queue.length > 0) {
     const tnt = queue.shift();
@@ -307,14 +323,31 @@ function explodeTnt(startBrick) {
         continue;
       }
 
-      destroyBrick(nearby);
       affectedRows.add(nearby.row);
-      destroyedCount += 1;
+      if (applyTntBlastDamage(nearby)) {
+        destroyedCount += 1;
+      } else {
+        damagedCount += 1;
+      }
     }
   }
 
   Sound.explosion();
-  finishBrickChanges(affectedRows, `TNT 폭발! ${destroyedCount}개 파괴`);
+  const damageMessage = damagedCount > 0 ? ` / ${damagedCount}개 손상` : "";
+  finishBrickChanges(affectedRows, `TNT 폭발! ${destroyedCount}개 파괴${damageMessage}`);
+}
+
+function applyTntBlastDamage(brick) {
+  const TNT_DAMAGE = 2;
+  brick.hp -= TNT_DAMAGE;
+
+  if (brick.hp <= 0) {
+    destroyBrick(brick);
+    return true;
+  }
+
+  brick.color = brick.damagedColor;
+  return false;
 }
 
 function getNearbyBricks(centerBrick) {

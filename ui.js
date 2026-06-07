@@ -16,17 +16,13 @@
   // 게임 화면 → 시작 화면
   // (시작 화면 → 게임 화면 전환과 실제 게임 시작은 script.js가 전담)
   function showStart() {
+    if (typeof stopGameForMenu === "function") {
+      stopGameForMenu();
+    }
+
     gameScreen.hidden = true;
     startScreen.hidden = false;
 
-    // 메인 메뉴로 나가면 게임 루프와 타이머를 즉시 정지시킴
-    if (window.state) {
-      window.state.status = "ready";
-      if (window.state.animationId !== null) {
-        cancelAnimationFrame(window.state.animationId);
-        window.state.animationId = null;
-      }
-    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   backButton.addEventListener("click", showStart);
